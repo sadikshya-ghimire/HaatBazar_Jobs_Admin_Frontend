@@ -18,12 +18,142 @@ const Dashboard = ({ onLogout }) => {
   });
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const notificationRef = React.useRef(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'overview') {
       fetchDashboardData();
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setShowNotifications(false);
+      }
+    };
+
+    if (showNotifications) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showNotifications]);
+
+  const fetchNotifications = async () => {
+    try {
+      // Fetch all data for notifications
+      const [usersRes, pendingUsersRes, jobsRes, pendingJobsRes, bookingsRes] = await Promise.all([
+        usersAPI.getAll(),
+        usersAPI.getPending(),
+        jobsAPI.getAll(),
+        jobsAPI.getPending(),
+        bookingsAPI.getAll()
+      ]);
+
+      const allNotifications = [];
+
+      // Pending user approvals
+      pendingUsersRes.data.forEach(user => {
+        allNotifications.push({
+          id: `user-pending-${user._id}`,
+          type: 'user_approval',
+          title: 'New User Registration',
+          message: `${user.name} (${user.type}) is waiting for approval`,
+          time: new Date(user.createdAt),
+          icon: 'user',
+          color: 'orange',
+          unread: true,
+          action: () => setActiveTab('users')
+        });
+      });
+
+      // Pending job approvals
+      pendingJobsRes.data.forEach(job => {
+        allNotifications.push({
+          id: `job-pending-${job._id}`,
+          type: 'job_approval',
+          title: 'New Job Post',
+          message: `"${job.title}" needs approval`,
+          time: new Date(job.createdAt),
+          icon: 'briefcase',
+          color: 'yellow',
+          unread: true,
+          action: () => setActiveTab('jobs')
+        });
+      });
+
+      // Pending bookings
+      const pendingBookings = bookingsRes.data.filter(b => 
+        b.bookingStatus === 'pending' || (b.adminApproval === true && !b.workerApproval)
+      );
+      
+      pendingBookings.forEach(booking => {
+        allNotifications.push({
+          id: `booking-pending-${booking._id}`,
+          type: 'booking_approval',
+          title: 'New Booking Request',
+          message: `Booking for ${booking.jobTitle || 'a job'} needs review`,
+          time: new Date(booking.createdAt),
+          icon: 'calendar',
+          color: 'blue',
+          unread: true,
+          action: () => setActiveTab('bookings')
+        });
+      });
+
+      // Recent completed jobs (last 24 hours)
+      const recentCompleted = jobsRes.data.filter(job => {
+        if (job.status === 'completed' && job.updatedAt) {
+          const hoursSince = (new Date() - new Date(job.updatedAt)) / (1000 * 60 * 60);
+          return hoursSince < 24;
+        }
+        return false;
+      });
+
+      recentCompleted.forEach(job => {
+        allNotifications.push({
+          id: `job-completed-${job._id}`,
+          type: 'job_completed',
+          title: 'Job Completed',
+          message: `"${job.title}" has been marked as completed`,
+          time: new Date(job.updatedAt),
+          icon: 'check',
+          color: 'green',
+          unread: false,
+          action: () => setActiveTab('jobs')
+        });
+      });
+
+      // Sort by time (newest first)
+      allNotifications.sort((a, b) => b.time - a.time);
+
+      // Get read notifications from localStorage
+      const readNotifications = JSON.parse(localStorage.getItem('readNotifications') || '[]');
+      
+      // Mark notifications as read if they're in localStorage
+      allNotifications.forEach(notification => {
+        if (readNotifications.includes(notification.id)) {
+          notification.unread = false;
+        }
+      });
+
+      setNotifications(allNotifications);
+      setUnreadCount(allNotifications.filter(n => n.unread).length);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -119,6 +249,89 @@ const Dashboard = ({ onLogout }) => {
     if (hours < 24) return `${hours}h ago`;
     const days = Math.floor(hours / 24);
     return `${days}d ago`;
+  };
+
+  const handleTabChange = (newTab) => {
+    if (newTab === activeTab) return;
+    
+    setIsTransitioning(true);
+    
+    // Faster transition - change content almost immediately
+    setTimeout(() => {
+      setActiveTab(newTab);
+    }, 80);
+    
+    setTimeout(() => {
+      setIsTransitioning(false);
+    }, 120);
+  };
+
+  const handleNotificationClick = (notification) => {
+    if (notification.action) {
+      notification.action();
+    }
+    setShowNotifications(false);
+  };
+
+  const markAllAsRead = () => {
+    const updatedNotifications = notifications.map(n => ({ ...n, unread: false }));
+    setNotifications(updatedNotifications);
+    setUnreadCount(0);
+    
+    // Save read notification IDs to localStorage
+    const readNotificationIds = notifications.map(n => n.id);
+    localStorage.setItem('readNotifications', JSON.stringify(readNotificationIds));
+  };
+
+  const getPageTitle = () => {
+    switch (activeTab) {
+      case 'users':
+        return 'User Management';
+      case 'jobs':
+        return 'Job Posts Management';
+      case 'bookings':
+        return 'Booking Management';
+      case 'overview':
+      default:
+        return 'Dashboard';
+    }
+  };
+
+  const getNotificationIcon = (iconType) => {
+    switch (iconType) {
+      case 'user':
+        return (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+        );
+      case 'briefcase':
+        return (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+          </svg>
+        );
+      case 'calendar':
+        return (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+            <line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8" y1="2" x2="8" y2="6" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+        );
+      case 'check':
+        return (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+        );
+      default:
+        return null;
+    }
   };
 
   const statsData = [
@@ -271,19 +484,13 @@ const Dashboard = ({ onLogout }) => {
     <div className="dashboard-container">
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <div className="sidebar-logo-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-              <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-              <line x1="12" y1="22.08" x2="12" y2="12" />
-            </svg>
-          </div>
+          <img src="/Logo.png" alt="HaatBazar Logo" className="sidebar-logo-image" />
           <h2>HaatBazar</h2>
         </div>
 
         <button 
           className={`sidebar-item ${activeTab === 'overview' ? 'active' : ''}`}
-          onClick={() => setActiveTab('overview')}
+          onClick={() => handleTabChange('overview')}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <rect x="3" y="3" width="7" height="7" />
@@ -296,7 +503,7 @@ const Dashboard = ({ onLogout }) => {
 
         <button 
           className={`sidebar-item ${activeTab === 'users' ? 'active' : ''}`}
-          onClick={() => setActiveTab('users')}
+          onClick={() => handleTabChange('users')}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -312,7 +519,7 @@ const Dashboard = ({ onLogout }) => {
 
         <button 
           className={`sidebar-item ${activeTab === 'jobs' ? 'active' : ''}`}
-          onClick={() => setActiveTab('jobs')}
+          onClick={() => handleTabChange('jobs')}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
@@ -323,7 +530,7 @@ const Dashboard = ({ onLogout }) => {
 
         <button 
           className={`sidebar-item ${activeTab === 'bookings' ? 'active' : ''}`}
-          onClick={() => setActiveTab('bookings')}
+          onClick={() => handleTabChange('bookings')}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
@@ -343,7 +550,7 @@ const Dashboard = ({ onLogout }) => {
           <div className="header-left">
             <p className="header-greeting">Welcome back, Admin 👋</p>
             <div className="header-title">
-              <h1>Dashboard</h1>
+              <h1>{getPageTitle()}</h1>
             </div>
           </div>
           <div className="header-right">
@@ -353,12 +560,64 @@ const Dashboard = ({ onLogout }) => {
                 <path d="m21 21-4.35-4.35" />
               </svg>
             </button>
-            <button className="header-notification-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-              </svg>
-            </button>
+            
+            <div className="notification-wrapper" ref={notificationRef}>
+              <button 
+                className="header-notification-icon"
+                onClick={() => setShowNotifications(!showNotifications)}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                </svg>
+                {unreadCount > 0 && (
+                  <span className="notification-badge">{unreadCount}</span>
+                )}
+              </button>
+
+              {showNotifications && (
+                <div className="notifications-dropdown">
+                  <div className="notifications-header">
+                    <h3>Notifications</h3>
+                    {unreadCount > 0 && (
+                      <button className="mark-read-btn" onClick={markAllAsRead}>
+                        Mark all as read
+                      </button>
+                    )}
+                  </div>
+                  <div className="notifications-list">
+                    {notifications.length > 0 ? (
+                      notifications.map(notification => (
+                        <div
+                          key={notification.id}
+                          className={`notification-item ${notification.color} ${notification.unread ? 'unread' : ''}`}
+                          onClick={() => handleNotificationClick(notification)}
+                        >
+                          <div className={`notification-icon ${notification.color}`}>
+                            {getNotificationIcon(notification.icon)}
+                          </div>
+                          <div className="notification-content">
+                            <div className="notification-title">{notification.title}</div>
+                            <div className="notification-message">{notification.message}</div>
+                            <div className="notification-time">{getTimeAgo(notification.time)}</div>
+                          </div>
+                          {notification.unread && <div className="unread-dot"></div>}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="no-notifications">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                        </svg>
+                        <p>No notifications</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="header-user" onClick={onLogout}>
               <div className="header-user-avatar">A</div>
               <span className="header-user-name">Admin Pro</span>
@@ -410,7 +669,9 @@ const Dashboard = ({ onLogout }) => {
             </button>
           </div>
 
-          {renderContent()}
+          <div className={`tabs-content ${isTransitioning ? 'transitioning' : ''}`}>
+            {renderContent()}
+          </div>
         </div>
       </div>
 

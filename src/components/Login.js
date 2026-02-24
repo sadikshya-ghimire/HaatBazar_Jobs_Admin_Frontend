@@ -47,11 +47,7 @@ const Login = ({ onLogin }) => {
     <div className="login-container">
       <div className="login-box">
         <div className="login-header">
-          <div className="logo-icon">
-            <svg width="60" height="60" viewBox="0 0 60 60" fill="none">
-              <path d="M30 5L50 15V35L30 45L10 35V15L30 5Z" stroke="white" strokeWidth="2" fill="none"/>
-            </svg>
-          </div>
+          <img src="/Logo.png" alt="HaatBazar Logo" className="logo-image" />
           <h1>Admin Portal</h1>
           <p>HaatBazar Jobs Administration</p>
         </div>

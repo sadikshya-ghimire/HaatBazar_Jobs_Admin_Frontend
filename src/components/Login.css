@@ -31,13 +31,14 @@
   color: white;
 }
 
-.logo-icon {
+.logo-image {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
   margin: 0 auto 20px;
-  width: 60px;
-  height: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.2));
+  border-radius: 16px;
 }
 
 .login-header h1 {
