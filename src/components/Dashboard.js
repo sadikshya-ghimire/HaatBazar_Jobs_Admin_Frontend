@@ -704,46 +704,46 @@ const Dashboard = ({ onLogout }) => {
 
                 {/* Growth Charts */}
                 <div className="charts-section">
-                  {/* Time Period Filter */}
-                  <div className="time-period-filter">
-                    <button 
-                      className={`period-btn ${timePeriod === '7days' ? 'active' : ''}`}
-                      onClick={() => setTimePeriod('7days')}
-                    >
-                      7 Days
-                    </button>
-                    <button 
-                      className={`period-btn ${timePeriod === '30days' ? 'active' : ''}`}
-                      onClick={() => setTimePeriod('30days')}
-                    >
-                      30 Days
-                    </button>
-                    <button 
-                      className={`period-btn ${timePeriod === '6months' ? 'active' : ''}`}
-                      onClick={() => setTimePeriod('6months')}
-                    >
-                      6 Months
-                    </button>
-                    <button 
-                      className={`period-btn ${timePeriod === '12months' ? 'active' : ''}`}
-                      onClick={() => setTimePeriod('12months')}
-                    >
-                      12 Months
-                    </button>
-                  </div>
-
                   {/* User Growth Chart */}
                   <div className="chart-card">
                     <div className="chart-header">
-                      <h3>User Growth</h3>
-                      <div className="chart-legend">
-                        <span className="legend-dot" style={{ background: '#4facb8' }}></span>
-                        <span>
-                          {timePeriod === '7days' ? 'Last 7 days' : 
-                           timePeriod === '30days' ? 'Last 30 days' : 
-                           timePeriod === '6months' ? 'Last 6 months' : 
-                           'Last 12 months'}
-                        </span>
+                      <div className="chart-title-section">
+                        <h3>User Growth</h3>
+                        <div className="chart-legend">
+                          <span className="legend-dot" style={{ background: '#4facb8' }}></span>
+                          <span>
+                            {timePeriod === '7days' ? 'Last 7 days' : 
+                             timePeriod === '30days' ? 'Last 30 days' : 
+                             timePeriod === '6months' ? 'Last 6 months' : 
+                             'Last 12 months'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="time-period-filter-inline">
+                        <button 
+                          className={`period-btn-inline ${timePeriod === '7days' ? 'active' : ''}`}
+                          onClick={() => setTimePeriod('7days')}
+                        >
+                          7D
+                        </button>
+                        <button 
+                          className={`period-btn-inline ${timePeriod === '30days' ? 'active' : ''}`}
+                          onClick={() => setTimePeriod('30days')}
+                        >
+                          30D
+                        </button>
+                        <button 
+                          className={`period-btn-inline ${timePeriod === '6months' ? 'active' : ''}`}
+                          onClick={() => setTimePeriod('6months')}
+                        >
+                          6M
+                        </button>
+                        <button 
+                          className={`period-btn-inline ${timePeriod === '12months' ? 'active' : ''}`}
+                          onClick={() => setTimePeriod('12months')}
+                        >
+                          1Y
+                        </button>
                       </div>
                     </div>
                     <ResponsiveContainer width="100%" height={250}>
@@ -797,15 +797,43 @@ const Dashboard = ({ onLogout }) => {
                   {/* Revenue Trend Chart */}
                   <div className="chart-card">
                     <div className="chart-header">
-                      <h3>Revenue Trend</h3>
-                      <div className="chart-legend">
-                        <span className="legend-dot" style={{ background: '#10b981' }}></span>
-                        <span>
-                          {timePeriod === '7days' ? 'Last 7 days' : 
-                           timePeriod === '30days' ? 'Last 30 days' : 
-                           timePeriod === '6months' ? 'Last 6 months' : 
-                           'Last 12 months'}
-                        </span>
+                      <div className="chart-title-section">
+                        <h3>Revenue Trend</h3>
+                        <div className="chart-legend">
+                          <span className="legend-dot" style={{ background: '#10b981' }}></span>
+                          <span>
+                            {timePeriod === '7days' ? 'Last 7 days' : 
+                             timePeriod === '30days' ? 'Last 30 days' : 
+                             timePeriod === '6months' ? 'Last 6 months' : 
+                             'Last 12 months'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="time-period-filter-inline">
+                        <button 
+                          className={`period-btn-inline ${timePeriod === '7days' ? 'active' : ''}`}
+                          onClick={() => setTimePeriod('7days')}
+                        >
+                          7D
+                        </button>
+                        <button 
+                          className={`period-btn-inline ${timePeriod === '30days' ? 'active' : ''}`}
+                          onClick={() => setTimePeriod('30days')}
+                        >
+                          30D
+                        </button>
+                        <button 
+                          className={`period-btn-inline ${timePeriod === '6months' ? 'active' : ''}`}
+                          onClick={() => setTimePeriod('6months')}
+                        >
+                          6M
+                        </button>
+                        <button 
+                          className={`period-btn-inline ${timePeriod === '12months' ? 'active' : ''}`}
+                          onClick={() => setTimePeriod('12months')}
+                        >
+                          1Y
+                        </button>
                       </div>
                     </div>
                     <ResponsiveContainer width="100%" height={250}>
