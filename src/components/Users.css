@@ -363,6 +363,11 @@
   color: #374151;
 }
 
+.users-table td:last-child {
+  min-width: 220px;
+  width: auto;
+}
+
 .user-cell {
   display: flex;
   align-items: center;
@@ -476,7 +481,8 @@
 .actions-cell {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  min-width: 200px;
 }
 
 .action-btn {
@@ -487,6 +493,8 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .action-btn.view {

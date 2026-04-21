@@ -149,31 +149,33 @@ const Bookings = () => {
         </div>
       </div>
 
-      <div className="bookings-filters">
-        <button 
-          className={`filter-btn ${filter === 'all' ? 'active' : ''}`}
-          onClick={() => setFilter('all')}
-        >
-          All Bookings
-        </button>
-        <button 
-          className={`filter-btn ${filter === 'pending' ? 'active' : ''}`}
-          onClick={() => setFilter('pending')}
-        >
-          Pending
-        </button>
-        <button 
-          className={`filter-btn ${filter === 'approved' ? 'active' : ''}`}
-          onClick={() => setFilter('approved')}
-        >
-          Approved
-        </button>
-        <button 
-          className={`filter-btn ${filter === 'rejected' ? 'active' : ''}`}
-          onClick={() => setFilter('rejected')}
-        >
-          Rejected
-        </button>
+      <div className="bookings-filters-row">
+        <div className="bookings-filters">
+          <button 
+            className={`filter-btn ${filter === 'all' ? 'active' : ''}`}
+            onClick={() => setFilter('all')}
+          >
+            All Bookings ({bookings.length})
+          </button>
+          <button 
+            className={`filter-btn ${filter === 'pending' ? 'active' : ''}`}
+            onClick={() => setFilter('pending')}
+          >
+            Pending ({bookings.filter(b => b.bookingStatus === 'pending' || b.status === 'pending').length})
+          </button>
+          <button 
+            className={`filter-btn ${filter === 'approved' ? 'active' : ''}`}
+            onClick={() => setFilter('approved')}
+          >
+            Approved ({bookings.filter(b => b.bookingStatus === 'approved' || b.status === 'approved').length})
+          </button>
+          <button 
+            className={`filter-btn ${filter === 'rejected' ? 'active' : ''}`}
+            onClick={() => setFilter('rejected')}
+          >
+            Rejected ({bookings.filter(b => b.bookingStatus === 'rejected' || b.status === 'rejected').length})
+          </button>
+        </div>
       </div>
 
       {filteredBookings.length === 0 ? (
@@ -188,147 +190,101 @@ const Bookings = () => {
           <p>There are no bookings matching your filter</p>
         </div>
       ) : (
-        <div className="bookings-grid">
-          {filteredBookings.map(booking => (
-            <div key={booking._id} className="booking-card">
-              <div className="booking-card-header">
-                <div className="booking-title">
-                  <h3>{booking.jobTitle || 'No Title'}</h3>
-                  <div className="booking-status-badges">
-                    <span className={`status-badge-booking ${getStatusColor(booking.bookingStatus || booking.status)}`}>
-                      {booking.bookingStatus || booking.status}
+        <div className="bookings-table-container">
+          <table className="bookings-table">
+            <thead>
+              <tr>
+                <th>JOB TITLE</th>
+                <th>WORKER</th>
+                <th>EMPLOYER</th>
+                <th>LOCATION</th>
+                <th>AMOUNT</th>
+                <th>PAYMENT</th>
+                <th>STATUS</th>
+                <th>DATE</th>
+                <th>ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredBookings.map(booking => (
+                <tr key={booking._id}>
+                  <td>
+                    <div className="job-title-cell">
+                      <span className="job-title-text">{booking.jobTitle || 'No Title'}</span>
+                    </div>
+                  </td>
+                  <td>{booking.workerName || 'N/A'}</td>
+                  <td>{booking.employerName || 'N/A'}</td>
+                  <td>{booking.area || booking.location?.area || 'N/A'}</td>
+                  <td>Rs. {booking.totalAmount || 'N/A'}</td>
+                  <td>
+                    <span className="payment-badge paid">
+                      {booking.paymentMethod || 'Paid'}
                     </span>
-                    {booking.adminApproval && !booking.workerApproval && (
-                      <span className="status-badge-booking orange">
-                        Awaiting Worker
-                      </span>
-                    )}
-                    {booking.adminApproval && booking.workerApproval && (
-                      <span className="status-badge-booking green">
-                        Fully Approved
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="booking-actions-top">
-                  <button 
-                    className="view-details-btn-booking"
-                    onClick={() => openModal(booking)}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                    Details
-                  </button>
-                </div>
-              </div>
-
-              <div className="booking-info">
-                <div className="info-row-booking">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                    <circle cx="12" cy="7" r="4" />
-                  </svg>
-                  <span><strong>Worker:</strong> {booking.workerName || 'N/A'}</span>
-                </div>
-                <div className="info-row-booking">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                  </svg>
-                  <span><strong>Employer:</strong> {booking.employerName || 'N/A'}</span>
-                </div>
-                <div className="info-row-booking">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                    <circle cx="12" cy="10" r="3" />
-                  </svg>
-                  <span>{booking.area || booking.location?.area || 'N/A'}, {booking.district || booking.location?.district || 'N/A'}</span>
-                </div>
-                <div className="info-row-booking">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="12" y1="1" x2="12" y2="23" />
-                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                  </svg>
-                  <span><strong>Amount:</strong> {booking.totalAmount || booking.agreedRate || booking.budget || 'N/A'}</span>
-                </div>
-                <div className="info-row-booking">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                    <line x1="16" y1="2" x2="16" y2="6" />
-                    <line x1="8" y1="2" x2="8" y2="6" />
-                    <line x1="3" y1="10" x2="21" y2="10" />
-                  </svg>
-                  <span><strong>Duration:</strong> {booking.workDuration || booking.duration || 'N/A'}</span>
-                </div>
-              </div>
-
-              <div className="payment-section">
-                <div className="payment-status">
-                  <span>Payment Status:</span>
-                  <span className={`payment-badge ${booking.paymentCompleted ? 'green' : 'orange'}`}>
-                    {booking.paymentCompleted ? 'Paid' : 'Pending'}
-                  </span>
-                </div>
-                {booking.paymentMethod && (
-                  <div className="payment-status">
-                    <span>Payment Method:</span>
-                    <span className="payment-method-text">
-                      {booking.paymentMethod}
+                  </td>
+                  <td>
+                    <span className={`status-badge ${
+                      booking.adminApproval && booking.workerApproval 
+                        ? 'green' 
+                        : booking.adminApproval && !booking.workerApproval 
+                        ? 'orange' 
+                        : getStatusColor(booking.bookingStatus || booking.status)
+                    }`}>
+                      {booking.adminApproval && booking.workerApproval 
+                        ? 'Fully Approved' 
+                        : booking.adminApproval && !booking.workerApproval 
+                        ? 'Awaiting Worker' 
+                        : booking.bookingStatus || booking.status}
                     </span>
-                  </div>
-                )}
-              </div>
-
-              {(booking.bookingStatus === 'pending' || booking.status === 'pending' || booking.status === 'accepted') && 
-               !(booking.bookingStatus === 'approved' || booking.status === 'approved') && 
-               !(booking.bookingStatus === 'rejected' || booking.status === 'rejected') && (
-                <div className="booking-actions">
-                  <button 
-                    className="approve-btn-booking"
-                    onClick={() => handleApprove(booking._id)}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                    Approve
-                  </button>
-                  <button 
-                    className="reject-btn-booking"
-                    onClick={() => {
-                      setSelectedBooking(booking);
-                      setShowModal(true);
-                    }}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                    Reject
-                  </button>
-                  <button 
-                    className="delete-btn-booking"
-                    onClick={() => handleDelete(booking._id)}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polyline points="3 6 5 6 21 6" />
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                    </svg>
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
+                  </td>
+                  <td>{new Date(booking.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                  <td>
+                    <div className="action-buttons">
+                      <button 
+                        className="action-btn view"
+                        onClick={() => openModal(booking)}
+                        title="View Details"
+                      >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      </button>
+                      {!booking.adminApproval && (
+                        <button 
+                          className="action-btn approve"
+                          onClick={() => handleApprove(booking._id)}
+                          title="Approve"
+                        >
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        </button>
+                      )}
+                      <button 
+                        className="action-btn delete"
+                        onClick={() => handleDelete(booking._id)}
+                        title="Delete"
+                      >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
+      {/* Modal for booking details */}
       {showModal && selectedBooking && (
         <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal-content-booking" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header-booking">
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
               <h2>Booking Details</h2>
               <button className="close-modal-btn" onClick={closeModal}>
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -338,85 +294,72 @@ const Bookings = () => {
               </button>
             </div>
 
-            <div className="modal-body-booking">
-              <div className="detail-section">
+            <div className="modal-body">
+              <div className="booking-detail-section">
                 <h3>Job Information</h3>
-                <p><strong>Title:</strong> {selectedBooking.jobTitle}</p>
-                <p><strong>Description:</strong> {selectedBooking.jobDescription}</p>
-                <p><strong>Budget:</strong> {selectedBooking.budget}</p>
-                <p><strong>Duration:</strong> {selectedBooking.duration}</p>
-                <p><strong>Location:</strong> {selectedBooking.area}, {selectedBooking.district}</p>
+                <div className="booking-detail-row">
+                  <span className="booking-detail-label">Title:</span>
+                  <span className="booking-detail-value">{selectedBooking.jobTitle || 'N/A'}</span>
+                </div>
+                <div className="booking-detail-row">
+                  <span className="booking-detail-label">Location:</span>
+                  <span className="booking-detail-value">{selectedBooking.area}, {selectedBooking.district}</span>
+                </div>
+                <div className="booking-detail-row">
+                  <span className="booking-detail-label">Amount:</span>
+                  <span className="booking-detail-value">Rs. {selectedBooking.totalAmount}</span>
+                </div>
               </div>
 
-              <div className="detail-section">
+              <div className="booking-detail-section">
                 <h3>Worker Information</h3>
-                <p><strong>Name:</strong> {selectedBooking.workerName}</p>
-                <p><strong>Phone:</strong> {selectedBooking.workerPhone}</p>
+                <div className="booking-detail-row">
+                  <span className="booking-detail-label">Name:</span>
+                  <span className="booking-detail-value">{selectedBooking.workerName || 'N/A'}</span>
+                </div>
+                <div className="booking-detail-row">
+                  <span className="booking-detail-label">Phone:</span>
+                  <span className="booking-detail-value">{selectedBooking.workerPhone || 'N/A'}</span>
+                </div>
               </div>
 
-              <div className="detail-section">
+              <div className="booking-detail-section">
                 <h3>Employer Information</h3>
-                <p><strong>Name:</strong> {selectedBooking.employerName}</p>
-                <p><strong>Phone:</strong> {selectedBooking.employerPhone}</p>
+                <div className="booking-detail-row">
+                  <span className="booking-detail-label">Name:</span>
+                  <span className="booking-detail-value">{selectedBooking.employerName || 'N/A'}</span>
+                </div>
+                <div className="booking-detail-row">
+                  <span className="booking-detail-label">Phone:</span>
+                  <span className="booking-detail-value">{selectedBooking.employerPhone || 'N/A'}</span>
+                </div>
               </div>
 
-              <div className="detail-section">
-                <h3>Status Information</h3>
-                <p><strong>Booking Status:</strong> <span className={`status-badge-booking ${getStatusColor(selectedBooking.bookingStatus)}`}>{selectedBooking.bookingStatus}</span></p>
-                <p><strong>Payment Status:</strong> <span className={`payment-badge ${selectedBooking.paymentCompleted ? 'green' : 'orange'}`}>{selectedBooking.paymentCompleted ? 'Paid' : 'Pending'}</span></p>
-                {selectedBooking.paymentMethod && (
-                  <p><strong>Payment Method:</strong> {selectedBooking.paymentMethod}</p>
-                )}
-                <p><strong>Created:</strong> {new Date(selectedBooking.createdAt).toLocaleString()}</p>
+              <div className="booking-detail-section">
+                <h3>Status</h3>
+                <div className="booking-detail-row">
+                  <span className="booking-detail-label">Booking Status:</span>
+                  <span className={`status-badge ${getStatusColor(selectedBooking.bookingStatus || selectedBooking.status)}`}>
+                    {selectedBooking.bookingStatus || selectedBooking.status}
+                  </span>
+                </div>
+                <div className="booking-detail-row">
+                  <span className="booking-detail-label">Payment:</span>
+                  <span className="payment-badge paid">{selectedBooking.paymentMethod || 'Paid'}</span>
+                </div>
+                <div className="booking-detail-row">
+                  <span className="booking-detail-label">Created:</span>
+                  <span className="booking-detail-value">{new Date(selectedBooking.createdAt).toLocaleString()}</span>
+                </div>
               </div>
+            </div>
 
-              {selectedBooking.bookingStatus === 'pending' && (
-                <div className="detail-section">
-                  <h3>Admin Actions</h3>
-                  <div className="admin-action-form">
-                    <textarea
-                      placeholder="Add notes (optional)"
-                      value={adminNotes}
-                      onChange={(e) => setAdminNotes(e.target.value)}
-                      rows="3"
-                    />
-                    <button 
-                      className="approve-btn-booking"
-                      onClick={() => handleApprove(selectedBooking._id)}
-                    >
-                      Approve Booking
-                    </button>
-                  </div>
-
-                  <div className="admin-action-form">
-                    <textarea
-                      placeholder="Rejection reason (required)"
-                      value={rejectionReason}
-                      onChange={(e) => setRejectionReason(e.target.value)}
-                      rows="3"
-                    />
-                    <button 
-                      className="reject-btn-booking"
-                      onClick={() => handleReject(selectedBooking._id)}
-                    >
-                      Reject Booking
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {selectedBooking.adminNotes && (
-                <div className="detail-section">
-                  <h3>Admin Notes</h3>
-                  <p>{selectedBooking.adminNotes}</p>
-                </div>
-              )}
-
-              {selectedBooking.rejectionReason && (
-                <div className="detail-section">
-                  <h3>Rejection Reason</h3>
-                  <p>{selectedBooking.rejectionReason}</p>
-                </div>
+            <div className="modal-actions">
+              <button className="modal-btn cancel" onClick={closeModal}>Close</button>
+              {!selectedBooking.adminApproval && (
+                <button className="modal-btn approve" onClick={() => handleApprove(selectedBooking._id)}>
+                  Approve
+                </button>
               )}
             </div>
           </div>

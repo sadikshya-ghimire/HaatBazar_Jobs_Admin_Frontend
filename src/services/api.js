@@ -85,4 +85,14 @@ export const bookingsAPI = {
   delete: (id) => api.delete(`/bookings/${id}`)
 };
 
+// Issues API
+export const issuesAPI = {
+  getAll: () => api.get('/issues'),
+  getById: (id) => api.get(`/issues/${id}`),
+  create: (issueData) => api.post('/issues', issueData),
+  updateStatus: (id, status, adminNotes, resolvedBy) => api.patch(`/issues/${id}/status`, { status, adminNotes, resolvedBy }),
+  updatePriority: (id, priority) => api.patch(`/issues/${id}/priority`, { priority }),
+  delete: (id) => api.delete(`/issues/${id}`)
+};
+
 export default api;

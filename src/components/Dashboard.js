@@ -3,8 +3,9 @@ import './Dashboard.css';
 import Users from './Users';
 import JobPosts from './JobPosts';
 import Bookings from './Bookings';
-import { usersAPI, jobsAPI, bookingsAPI } from '../services/api';
-import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import Issues from './Issues';
+import { usersAPI, jobsAPI, bookingsAPI, issuesAPI } from '../services/api';
+import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const Dashboard = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -28,7 +29,11 @@ const Dashboard = ({ onLogout }) => {
     jobsPostedToday: 0,
     pendingDisputes: 0,
     reportedUsers: 0,
-    failedPayments: 0
+    failedPayments: 0,
+    jobsApproved: 0,
+    jobsRejected: 0,
+    conversionRate: 0,
+    mostRequestedJobType: ''
   });
   const [growthData, setGrowthData] = useState({
     userGrowth: [],
@@ -41,13 +46,21 @@ const Dashboard = ({ onLogout }) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const notificationRef = React.useRef(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const [timePeriod, setTimePeriod] = useState('6months'); // 7days, 30days, 6months, 12months
+  const [timePeriod, setTimePeriod] = useState('7days'); // For analytics tab
+  const [overviewPeriod] = useState('7days'); // Fixed 7 days for overview
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'overview') {
-      fetchDashboardData();
+      // Overview always uses 7 days
+      fetchDashboardData('7days');
+    } else if (activeTab === 'analytics') {
+      // Analytics uses the selected time period
+      fetchDashboardData(timePeriod);
     }
-  }, [activeTab, timePeriod]);
+  }, [activeTab, timePeriod, customStartDate, customEndDate]);
 
   useEffect(() => {
     fetchNotifications();
@@ -174,7 +187,7 @@ const Dashboard = ({ onLogout }) => {
     }
   };
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (period = '7days') => {
     try {
       setLoading(true);
       
@@ -258,6 +271,29 @@ const Dashboard = ({ onLogout }) => {
       // Failed payments
       const failedPayments = allBookings.filter(b => b.paymentStatus === 'failed').length;
       
+      // Jobs approved vs rejected
+      const jobsApproved = allJobs.filter(j => j.status === 'active' || j.status === 'completed').length;
+      const jobsRejected = allJobs.filter(j => j.status === 'rejected').length;
+      
+      // Conversion rate: Jobs posted → Bookings made
+      const totalJobsPosted = allJobs.length;
+      const totalBookingsMade = allBookings.length;
+      const conversionRate = totalJobsPosted > 0 
+        ? ((totalBookingsMade / totalJobsPosted) * 100).toFixed(1) 
+        : 0;
+      
+      // Most requested job type (if you have categories/titles)
+      const jobTypeCounts = {};
+      allJobs.forEach(job => {
+        if (job.category || job.title) {
+          const type = job.category || job.title;
+          jobTypeCounts[type] = (jobTypeCounts[type] || 0) + 1;
+        }
+      });
+      const mostRequestedJobType = Object.keys(jobTypeCounts).length > 0
+        ? Object.entries(jobTypeCounts).sort((a, b) => b[1] - a[1])[0][0]
+        : 'N/A';
+      
       setStats({
         totalUsers: activeUsers.length,
         pendingApprovals: pendingUsers.length,
@@ -278,44 +314,135 @@ const Dashboard = ({ onLogout }) => {
         jobsPostedToday,
         pendingDisputes: 0, // Would need dispute collection
         reportedUsers: 0, // Would need reports collection
-        failedPayments
+        failedPayments,
+        jobsApproved,
+        jobsRejected,
+        conversionRate,
+        mostRequestedJobType
       });
 
       // Calculate growth data for charts based on selected time period
       const growthDataArray = [];
-      let periods, periodCount, formatLabel;
+      let periods, periodCount, formatLabel, isCustomRange = false;
 
-      switch (timePeriod) {
-        case '7days':
-          periods = 7;
-          periodCount = 7;
-          formatLabel = (date) => date.toLocaleDateString('en-US', { weekday: 'short' });
-          break;
-        case '30days':
-          periods = 30;
-          periodCount = 30;
+      if (period === 'custom' && customStartDate && customEndDate) {
+        isCustomRange = true;
+        const start = new Date(customStartDate);
+        const end = new Date(customEndDate);
+        const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+        
+        if (daysDiff <= 31) {
+          // Daily data for ranges up to 31 days
+          periodCount = daysDiff + 1;
           formatLabel = (date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-          break;
-        case '6months':
-          periods = 6;
-          periodCount = 6;
-          formatLabel = (date) => date.toLocaleDateString('en-US', { month: 'short' });
-          break;
-        case '12months':
-          periods = 12;
-          periodCount = 12;
-          formatLabel = (date) => date.toLocaleDateString('en-US', { month: 'short' });
-          break;
-        default:
-          periods = 6;
-          periodCount = 6;
-          formatLabel = (date) => date.toLocaleDateString('en-US', { month: 'short' });
+        } else {
+          // Monthly data for longer ranges
+          const monthsDiff = Math.ceil(daysDiff / 30);
+          periodCount = monthsDiff;
+          formatLabel = (date) => date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+        }
+      } else {
+        switch (period) {
+          case '7days':
+            periods = 7;
+            periodCount = 7;
+            formatLabel = (date) => date.toLocaleDateString('en-US', { weekday: 'short' });
+            break;
+          case '30days':
+            periods = 30;
+            periodCount = 30;
+            formatLabel = (date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            break;
+          case '6months':
+            periods = 6;
+            periodCount = 6;
+            formatLabel = (date) => date.toLocaleDateString('en-US', { month: 'short' });
+            break;
+          case '12months':
+            periods = 12;
+            periodCount = 12;
+            formatLabel = (date) => date.toLocaleDateString('en-US', { month: 'short' });
+            break;
+          default:
+            periods = 7;
+            periodCount = 7;
+            formatLabel = (date) => date.toLocaleDateString('en-US', { weekday: 'short' });
+        }
       }
 
       const monthlyUserGrowth = [];
       const monthlyRevenue = [];
       
-      if (timePeriod === '7days' || timePeriod === '30days') {
+      if (isCustomRange) {
+        const start = new Date(customStartDate);
+        const end = new Date(customEndDate);
+        const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+        
+        if (daysDiff <= 31) {
+          // Daily data
+          for (let i = 0; i <= daysDiff; i++) {
+            const date = new Date(start);
+            date.setDate(date.getDate() + i);
+            const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0);
+            const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59);
+            
+            const usersInDay = allUsers.filter(u => {
+              const createdDate = new Date(u.createdAt);
+              return createdDate >= dayStart && createdDate <= dayEnd;
+            }).length;
+            
+            const revenueInDay = allBookings
+              .filter(b => {
+                if (!b.paymentCompleted || !b.createdAt) return false;
+                const bookingDate = new Date(b.createdAt);
+                return bookingDate >= dayStart && bookingDate <= dayEnd;
+              })
+              .reduce((sum, b) => sum + (parseFloat(b.totalAmount) || 0), 0);
+            
+            monthlyUserGrowth.push({
+              month: formatLabel(date),
+              value: usersInDay
+            });
+            
+            monthlyRevenue.push({
+              month: formatLabel(date),
+              value: revenueInDay
+            });
+          }
+        } else {
+          // Monthly data for custom range
+          const monthsDiff = Math.ceil(daysDiff / 30);
+          for (let i = 0; i < monthsDiff; i++) {
+            const monthDate = new Date(start);
+            monthDate.setMonth(monthDate.getMonth() + i);
+            const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+            const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+            
+            const usersInMonth = allUsers.filter(u => {
+              const createdDate = new Date(u.createdAt);
+              return createdDate >= monthStart && createdDate <= monthEnd;
+            }).length;
+            
+            const revenueInMonth = allBookings
+              .filter(b => {
+                if (!b.paymentCompleted || !b.createdAt) return false;
+                const bookingDate = new Date(b.createdAt);
+                return bookingDate >= monthStart && bookingDate <= monthEnd;
+              })
+              .reduce((sum, b) => sum + (parseFloat(b.totalAmount) || 0), 0);
+            
+            monthlyUserGrowth.push({
+              month: formatLabel(monthDate),
+              value: usersInMonth
+            });
+            
+            monthlyRevenue.push({
+              month: formatLabel(monthDate),
+              value: revenueInMonth
+            });
+          }
+        }
+      } else if (period === '7days' || period === '30days') {
         // Daily data
         for (let i = periodCount - 1; i >= 0; i--) {
           const date = new Date();
@@ -505,6 +632,12 @@ const Dashboard = ({ onLogout }) => {
         return 'Job Posts Management';
       case 'bookings':
         return 'Booking Management';
+      case 'analytics':
+        return 'Basic Analytics';
+      case 'issues':
+        return 'Issues & Support';
+      case 'settings':
+        return 'Settings';
       case 'overview':
       default:
         return 'Dashboard';
@@ -667,6 +800,760 @@ const Dashboard = ({ onLogout }) => {
         return <JobPosts />;
       case 'bookings':
         return <Bookings />;
+      case 'issues':
+        return <Issues />;
+      case 'analytics':
+        return (
+          <div className="analytics-container">
+            <div className="analytics-header">
+              <h2>Analytics Overview</h2>
+              <p>Comprehensive insights into your platform performance</p>
+            </div>
+            
+            {/* Reuse the charts from overview */}
+            <div className="charts-section">
+              {/* User Growth Chart */}
+              <div className="chart-card">
+                <div className="chart-header">
+                  <div className="chart-title-section">
+                    <h3>User Growth</h3>
+                    <div className="chart-legend">
+                      <span className="legend-dot" style={{ background: '#4facb8' }}></span>
+                      <span>
+                        {timePeriod === 'custom' && customStartDate && customEndDate
+                          ? `${new Date(customStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                          : timePeriod === '7days' ? 'Last 7 days' : 
+                            timePeriod === '30days' ? 'Last 30 days' : 
+                            timePeriod === '6months' ? 'Last 6 months' : 
+                            'Last 12 months'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="time-period-filter-wrapper">
+                    <div className="time-period-filter-inline">
+                      <button 
+                        className={`period-btn-inline ${timePeriod === '7days' ? 'active' : ''}`}
+                        onClick={() => {
+                          setTimePeriod('7days');
+                          setShowDatePicker(false);
+                        }}
+                      >
+                        7D
+                      </button>
+                      <button 
+                        className={`period-btn-inline ${timePeriod === '30days' ? 'active' : ''}`}
+                        onClick={() => {
+                          setTimePeriod('30days');
+                          setShowDatePicker(false);
+                        }}
+                      >
+                        30D
+                      </button>
+                      <button 
+                        className={`period-btn-inline ${timePeriod === '6months' ? 'active' : ''}`}
+                        onClick={() => {
+                          setTimePeriod('6months');
+                          setShowDatePicker(false);
+                        }}
+                      >
+                        6M
+                      </button>
+                      <button 
+                        className={`period-btn-inline ${timePeriod === '12months' ? 'active' : ''}`}
+                        onClick={() => {
+                          setTimePeriod('12months');
+                          setShowDatePicker(false);
+                        }}
+                      >
+                        1Y
+                      </button>
+                      <button 
+                        className={`period-btn-inline ${timePeriod === 'custom' ? 'active' : ''}`}
+                        onClick={() => setShowDatePicker(!showDatePicker)}
+                        title="Custom Date Range"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                          <line x1="16" y1="2" x2="16" y2="6" />
+                          <line x1="8" y1="2" x2="8" y2="6" />
+                          <line x1="3" y1="10" x2="21" y2="10" />
+                        </svg>
+                      </button>
+                    </div>
+                    {showDatePicker && (
+                      <div className="custom-date-dropdown">
+                        <div className="date-input-group">
+                          <label>From:</label>
+                          <input 
+                            type="date" 
+                            value={customStartDate}
+                            onChange={(e) => setCustomStartDate(e.target.value)}
+                            max={customEndDate || new Date().toISOString().split('T')[0]}
+                          />
+                        </div>
+                        <div className="date-input-group">
+                          <label>To:</label>
+                          <input 
+                            type="date" 
+                            value={customEndDate}
+                            onChange={(e) => setCustomEndDate(e.target.value)}
+                            min={customStartDate}
+                            max={new Date().toISOString().split('T')[0]}
+                          />
+                        </div>
+                        <button 
+                          className="apply-date-btn"
+                          onClick={() => {
+                            if (customStartDate && customEndDate) {
+                              setTimePeriod('custom');
+                              setShowDatePicker(false);
+                            }
+                          }}
+                          disabled={!customStartDate || !customEndDate}
+                        >
+                          Apply
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <ResponsiveContainer width="100%" height={250}>
+                  <AreaChart data={growthData.userGrowth} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#4facb8" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#4facb8" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                    <XAxis 
+                      dataKey="month" 
+                      stroke="#9ca3af" 
+                      style={{ fontSize: '12px' }}
+                      tickLine={false}
+                    />
+                    <YAxis 
+                      stroke="#9ca3af" 
+                      style={{ fontSize: '12px' }}
+                      tickLine={false}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area 
+                      type="monotone" 
+                      dataKey="value" 
+                      stroke="#4facb8" 
+                      strokeWidth={3}
+                      fillOpacity={1} 
+                      fill="url(#colorUsers)"
+                      name="New Users"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+                <div className="chart-stats">
+                  <div className="chart-stat">
+                    <span className="stat-label-small">Current Month</span>
+                    <span className="stat-value-small">
+                      {growthData.userGrowth[growthData.userGrowth.length - 1]?.value || 0}
+                    </span>
+                  </div>
+                  <div className="chart-stat">
+                    <span className="stat-label-small">6-Month Avg</span>
+                    <span className="stat-value-small">
+                      {Math.round(growthData.userGrowth.reduce((sum, d) => sum + d.value, 0) / growthData.userGrowth.length) || 0}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Revenue Trend Chart */}
+              <div className="chart-card">
+                <div className="chart-header">
+                  <div className="chart-title-section">
+                    <h3>Revenue Trend</h3>
+                    <div className="chart-legend">
+                      <span className="legend-dot" style={{ background: '#10b981' }}></span>
+                      <span>
+                        {timePeriod === 'custom' && customStartDate && customEndDate
+                          ? `${new Date(customStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${new Date(customEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                          : timePeriod === '7days' ? 'Last 7 days' : 
+                            timePeriod === '30days' ? 'Last 30 days' : 
+                            timePeriod === '6months' ? 'Last 6 months' : 
+                            'Last 12 months'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="time-period-filter-wrapper">
+                    <div className="time-period-filter-inline">
+                      <button 
+                        className={`period-btn-inline ${timePeriod === '7days' ? 'active' : ''}`}
+                        onClick={() => {
+                          setTimePeriod('7days');
+                          setShowDatePicker(false);
+                        }}
+                      >
+                        7D
+                      </button>
+                      <button 
+                        className={`period-btn-inline ${timePeriod === '30days' ? 'active' : ''}`}
+                        onClick={() => {
+                          setTimePeriod('30days');
+                          setShowDatePicker(false);
+                        }}
+                      >
+                        30D
+                      </button>
+                      <button 
+                        className={`period-btn-inline ${timePeriod === '6months' ? 'active' : ''}`}
+                        onClick={() => {
+                          setTimePeriod('6months');
+                          setShowDatePicker(false);
+                        }}
+                      >
+                        6M
+                      </button>
+                      <button 
+                        className={`period-btn-inline ${timePeriod === '12months' ? 'active' : ''}`}
+                        onClick={() => {
+                          setTimePeriod('12months');
+                          setShowDatePicker(false);
+                        }}
+                      >
+                        1Y
+                      </button>
+                      <button 
+                        className={`period-btn-inline ${timePeriod === 'custom' ? 'active' : ''}`}
+                        onClick={() => setShowDatePicker(!showDatePicker)}
+                        title="Custom Date Range"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                          <line x1="16" y1="2" x2="16" y2="6" />
+                          <line x1="8" y1="2" x2="8" y2="6" />
+                          <line x1="3" y1="10" x2="21" y2="10" />
+                        </svg>
+                      </button>
+                    </div>
+                    {showDatePicker && (
+                      <div className="custom-date-dropdown">
+                        <div className="date-input-group">
+                          <label>From:</label>
+                          <input 
+                            type="date" 
+                            value={customStartDate}
+                            onChange={(e) => setCustomStartDate(e.target.value)}
+                            max={customEndDate || new Date().toISOString().split('T')[0]}
+                          />
+                        </div>
+                        <div className="date-input-group">
+                          <label>To:</label>
+                          <input 
+                            type="date" 
+                            value={customEndDate}
+                            onChange={(e) => setCustomEndDate(e.target.value)}
+                            min={customStartDate}
+                            max={new Date().toISOString().split('T')[0]}
+                          />
+                        </div>
+                        <button 
+                          className="apply-date-btn"
+                          onClick={() => {
+                            if (customStartDate && customEndDate) {
+                              setTimePeriod('custom');
+                              setShowDatePicker(false);
+                            }
+                          }}
+                          disabled={!customStartDate || !customEndDate}
+                        >
+                          Apply
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <ResponsiveContainer width="100%" height={250}>
+                  <AreaChart data={growthData.revenueGrowth} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                    <XAxis 
+                      dataKey="month" 
+                      stroke="#9ca3af" 
+                      style={{ fontSize: '12px' }}
+                      tickLine={false}
+                    />
+                    <YAxis 
+                      stroke="#9ca3af" 
+                      style={{ fontSize: '12px' }}
+                      tickLine={false}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area 
+                      type="monotone" 
+                      dataKey="value" 
+                      stroke="#10b981" 
+                      strokeWidth={3}
+                      fillOpacity={1} 
+                      fill="url(#colorRevenue)"
+                      name="Revenue (Rs.)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+                <div className="chart-stats">
+                  <div className="chart-stat">
+                    <span className="stat-label-small">Current Month</span>
+                    <span className="stat-value-small">
+                      Rs. {growthData.revenueGrowth[growthData.revenueGrowth.length - 1]?.value.toLocaleString() || 0}
+                    </span>
+                  </div>
+                  <div className="chart-stat">
+                    <span className="stat-label-small">6-Month Avg</span>
+                    <span className="stat-value-small">
+                      Rs. {Math.round(growthData.revenueGrowth.reduce((sum, d) => sum + d.value, 0) / growthData.revenueGrowth.length).toLocaleString() || 0}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Analytics Stats Grid */}
+            <div className="stats-grid">
+              {statsData.map(stat => (
+                <div key={stat.id} className={`stat-card ${stat.color}`}>
+                  <div className="stat-body">
+                    <div className="stat-info">
+                      <div className="stat-label">{stat.label}</div>
+                      <div className="stat-value">{stat.value}</div>
+                      {stat.growth && (
+                        <div className={`stat-growth-inline ${stat.growthPositive ? 'positive' : 'negative'}`}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                            <polyline points={stat.growthPositive ? "18 15 12 9 6 15" : "18 9 12 15 6 9"} />
+                          </svg>
+                          {stat.growth} {stat.description}
+                        </div>
+                      )}
+                    </div>
+                    <div className="stat-icon-wrapper">
+                      <div className="stat-icon">{stat.icon}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Job Approval Insights & Conversion Rate */}
+            <div className="analytics-insights-grid">
+              {/* Job Approval Chart */}
+              <div className="chart-card">
+                <div className="chart-header">
+                  <div className="chart-title-section">
+                    <h3>Job Approval Impact</h3>
+                    <p className="chart-subtitle">Admin verification results</p>
+                  </div>
+                </div>
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart 
+                    data={[
+                      { name: 'Approved', value: insights.jobsApproved, fill: '#10b981' },
+                      { name: 'Rejected', value: insights.jobsRejected, fill: '#ef4444' }
+                    ]} 
+                    margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                    <XAxis 
+                      dataKey="name" 
+                      stroke="#9ca3af" 
+                      style={{ fontSize: '12px' }}
+                      tickLine={false}
+                    />
+                    <YAxis 
+                      stroke="#9ca3af" 
+                      style={{ fontSize: '12px' }}
+                      tickLine={false}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="value" fill="#10b981" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+                <div className="chart-stats">
+                  <div className="chart-stat">
+                    <span className="stat-label-small">Total Approved</span>
+                    <span className="stat-value-small" style={{ color: '#10b981' }}>
+                      {insights.jobsApproved}
+                    </span>
+                  </div>
+                  <div className="chart-stat">
+                    <span className="stat-label-small">Total Rejected</span>
+                    <span className="stat-value-small" style={{ color: '#ef4444' }}>
+                      {insights.jobsRejected}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Conversion Rate Card */}
+              <div className="conversion-card">
+                <div className="conversion-header">
+                  <h3>Conversion Insight</h3>
+                  <p className="conversion-subtitle">Jobs to Bookings conversion</p>
+                </div>
+                <div className="conversion-body">
+                  <div className="conversion-visual">
+                    <div className="conversion-circle">
+                      <svg width="180" height="180" viewBox="0 0 180 180">
+                        <circle
+                          cx="90"
+                          cy="90"
+                          r="70"
+                          fill="none"
+                          stroke="#f3f4f6"
+                          strokeWidth="20"
+                        />
+                        <circle
+                          cx="90"
+                          cy="90"
+                          r="70"
+                          fill="none"
+                          stroke="url(#conversionGradient)"
+                          strokeWidth="20"
+                          strokeDasharray={`${(insights.conversionRate / 100) * 439.8} 439.8`}
+                          strokeLinecap="round"
+                          transform="rotate(-90 90 90)"
+                        />
+                        <defs>
+                          <linearGradient id="conversionGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="#6366f1" />
+                            <stop offset="100%" stopColor="#a855f7" />
+                          </linearGradient>
+                        </defs>
+                      </svg>
+                      <div className="conversion-percentage">
+                        <span className="conversion-value">{insights.conversionRate}%</span>
+                        <span className="conversion-label">Conversion</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="conversion-stats">
+                    <div className="conversion-stat-item">
+                      <div className="conversion-stat-icon" style={{ background: '#dbeafe', color: '#2563eb' }}>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                          <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="conversion-stat-label">Jobs Posted</div>
+                        <div className="conversion-stat-value">{stats.activeJobs + stats.completedJobs}</div>
+                      </div>
+                    </div>
+                    <div className="conversion-arrow">→</div>
+                    <div className="conversion-stat-item">
+                      <div className="conversion-stat-icon" style={{ background: '#d1fae5', color: '#059669' }}>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                          <line x1="16" y1="2" x2="16" y2="6" />
+                          <line x1="8" y1="2" x2="8" y2="6" />
+                          <line x1="3" y1="10" x2="21" y2="10" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="conversion-stat-label">Bookings Made</div>
+                        <div className="conversion-stat-value">{stats.totalBookings}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Pending Actions Summary */}
+            <div className="pending-actions-section">
+              <div className="section-header">
+                <h3>Pending Actions Summary</h3>
+                <p>Items requiring your attention</p>
+              </div>
+              <div className="pending-actions-grid">
+                <div className="pending-action-card" onClick={() => handleTabChange('users')}>
+                  <div className="pending-action-icon" style={{ background: '#fef3c7', color: '#d97706' }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                  </div>
+                  <div className="pending-action-content">
+                    <div className="pending-action-count">{stats.pendingApprovals}</div>
+                    <div className="pending-action-label">Users Waiting Verification</div>
+                  </div>
+                  <div className="pending-action-arrow">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </div>
+                </div>
+
+                <div className="pending-action-card" onClick={() => handleTabChange('jobs')}>
+                  <div className="pending-action-icon" style={{ background: '#dbeafe', color: '#2563eb' }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                    </svg>
+                  </div>
+                  <div className="pending-action-content">
+                    <div className="pending-action-count">{stats.pendingJobs}</div>
+                    <div className="pending-action-label">Jobs Waiting Approval</div>
+                  </div>
+                  <div className="pending-action-arrow">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </div>
+                </div>
+
+                <div className="pending-action-card" onClick={() => handleTabChange('bookings')}>
+                  <div className="pending-action-icon" style={{ background: '#fce7f3', color: '#db2777' }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                      <line x1="16" y1="2" x2="16" y2="6" />
+                      <line x1="8" y1="2" x2="8" y2="6" />
+                      <line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                  </div>
+                  <div className="pending-action-content">
+                    <div className="pending-action-count">{stats.pendingBookings}</div>
+                    <div className="pending-action-label">Bookings Waiting</div>
+                  </div>
+                  <div className="pending-action-arrow">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Top Activity Section */}
+            <div className="top-activity-section">
+              <div className="section-header">
+                <h3>Top Activity</h3>
+                <p>Platform highlights and trends</p>
+              </div>
+              <div className="top-activity-grid">
+                <div className="activity-highlight-card">
+                  <div className="activity-highlight-icon" style={{ background: 'linear-gradient(135deg, #6366f1 0%, #818cf8 100%)' }}>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                  </div>
+                  <div className="activity-highlight-content">
+                    <div className="activity-highlight-label">Most Active User</div>
+                    <div className="activity-highlight-value">{insights.mostActiveUser}</div>
+                    <div className="activity-highlight-meta">{stats.completedJobs} completed jobs</div>
+                  </div>
+                </div>
+
+                <div className="activity-highlight-card">
+                  <div className="activity-highlight-icon" style={{ background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)' }}>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                      <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                    </svg>
+                  </div>
+                  <div className="activity-highlight-content">
+                    <div className="activity-highlight-label">Most Requested Job Type</div>
+                    <div className="activity-highlight-value">{insights.mostRequestedJobType}</div>
+                    <div className="activity-highlight-meta">Trending category</div>
+                  </div>
+                </div>
+
+                <div className="activity-highlight-card">
+                  <div className="activity-highlight-icon" style={{ background: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)' }}>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                      <polyline points="16 18 22 12 16 6" />
+                      <polyline points="8 6 2 12 8 18" />
+                    </svg>
+                  </div>
+                  <div className="activity-highlight-content">
+                    <div className="activity-highlight-label">Most Popular Skill</div>
+                    <div className="activity-highlight-value">{insights.mostPopularSkill}</div>
+                    <div className="activity-highlight-meta">In-demand expertise</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      case 'settings':
+        return (
+          <div className="settings-container">
+            <div className="settings-header">
+              <h2>Settings</h2>
+              <p>Manage your admin account and system preferences</p>
+            </div>
+
+            <div className="settings-grid">
+              {/* Profile Settings */}
+              <div className="settings-card">
+                <div className="settings-card-header">
+                  <div className="settings-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                  </div>
+                  <h3>Profile Settings</h3>
+                </div>
+                <div className="settings-card-body">
+                  <div className="settings-item">
+                    <label>Email Address</label>
+                    <input type="email" value="admin@haatbazarjobs.com" disabled />
+                  </div>
+                  <div className="settings-item">
+                    <label>Display Name</label>
+                    <input type="text" placeholder="Admin" />
+                  </div>
+                  <button className="settings-btn primary">Update Profile</button>
+                </div>
+              </div>
+
+              {/* Security Settings */}
+              <div className="settings-card">
+                <div className="settings-card-header">
+                  <div className="settings-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                  </div>
+                  <h3>Security</h3>
+                </div>
+                <div className="settings-card-body">
+                  <div className="settings-item">
+                    <label>Current Password</label>
+                    <input type="password" placeholder="Enter current password" />
+                  </div>
+                  <div className="settings-item">
+                    <label>New Password</label>
+                    <input type="password" placeholder="Enter new password" />
+                  </div>
+                  <button className="settings-btn primary">Change Password</button>
+                </div>
+              </div>
+
+              {/* Notification Settings */}
+              <div className="settings-card">
+                <div className="settings-card-header">
+                  <div className="settings-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                    </svg>
+                  </div>
+                  <h3>Notifications</h3>
+                </div>
+                <div className="settings-card-body">
+                  <div className="settings-toggle-item">
+                    <div>
+                      <div className="toggle-label">Email Notifications</div>
+                      <div className="toggle-description">Receive email alerts for important events</div>
+                    </div>
+                    <label className="toggle-switch">
+                      <input type="checkbox" defaultChecked />
+                      <span className="toggle-slider"></span>
+                    </label>
+                  </div>
+                  <div className="settings-toggle-item">
+                    <div>
+                      <div className="toggle-label">New User Registrations</div>
+                      <div className="toggle-description">Get notified when new users register</div>
+                    </div>
+                    <label className="toggle-switch">
+                      <input type="checkbox" defaultChecked />
+                      <span className="toggle-slider"></span>
+                    </label>
+                  </div>
+                  <div className="settings-toggle-item">
+                    <div>
+                      <div className="toggle-label">Payment Alerts</div>
+                      <div className="toggle-description">Alerts for completed and failed payments</div>
+                    </div>
+                    <label className="toggle-switch">
+                      <input type="checkbox" defaultChecked />
+                      <span className="toggle-slider"></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* System Settings */}
+              <div className="settings-card">
+                <div className="settings-card-header">
+                  <div className="settings-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M12 1v6m0 6v6m5.2-13.2l-4.2 4.2m0 6l4.2 4.2M23 12h-6m-6 0H1m18.2 5.2l-4.2-4.2m0-6l-4.2-4.2" />
+                    </svg>
+                  </div>
+                  <h3>System Preferences</h3>
+                </div>
+                <div className="settings-card-body">
+                  <div className="settings-item">
+                    <label>Default Currency</label>
+                    <select>
+                      <option value="NPR">NPR (Nepali Rupee)</option>
+                      <option value="USD">USD (US Dollar)</option>
+                      <option value="INR">INR (Indian Rupee)</option>
+                    </select>
+                  </div>
+                  <div className="settings-item">
+                    <label>Date Format</label>
+                    <select>
+                      <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                      <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                      <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                    </select>
+                  </div>
+                  <button className="settings-btn primary">Save Preferences</button>
+                </div>
+              </div>
+            </div>
+
+            {/* Danger Zone */}
+            <div className="settings-card danger-zone">
+              <div className="settings-card-header">
+                <div className="settings-icon danger">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                </div>
+                <h3>Danger Zone</h3>
+              </div>
+              <div className="settings-card-body">
+                <div className="danger-item">
+                  <div>
+                    <div className="danger-label">Clear All Notifications</div>
+                    <div className="danger-description">This will permanently delete all notification history</div>
+                  </div>
+                  <button className="settings-btn danger">Clear</button>
+                </div>
+                <div className="danger-item">
+                  <div>
+                    <div className="danger-label">Reset Dashboard</div>
+                    <div className="danger-description">Reset all dashboard settings to default</div>
+                  </div>
+                  <button className="settings-btn danger">Reset</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
       case 'overview':
       default:
         return (
@@ -711,39 +1598,8 @@ const Dashboard = ({ onLogout }) => {
                         <h3>User Growth</h3>
                         <div className="chart-legend">
                           <span className="legend-dot" style={{ background: '#4facb8' }}></span>
-                          <span>
-                            {timePeriod === '7days' ? 'Last 7 days' : 
-                             timePeriod === '30days' ? 'Last 30 days' : 
-                             timePeriod === '6months' ? 'Last 6 months' : 
-                             'Last 12 months'}
-                          </span>
+                          <span>Last 7 days</span>
                         </div>
-                      </div>
-                      <div className="time-period-filter-inline">
-                        <button 
-                          className={`period-btn-inline ${timePeriod === '7days' ? 'active' : ''}`}
-                          onClick={() => setTimePeriod('7days')}
-                        >
-                          7D
-                        </button>
-                        <button 
-                          className={`period-btn-inline ${timePeriod === '30days' ? 'active' : ''}`}
-                          onClick={() => setTimePeriod('30days')}
-                        >
-                          30D
-                        </button>
-                        <button 
-                          className={`period-btn-inline ${timePeriod === '6months' ? 'active' : ''}`}
-                          onClick={() => setTimePeriod('6months')}
-                        >
-                          6M
-                        </button>
-                        <button 
-                          className={`period-btn-inline ${timePeriod === '12months' ? 'active' : ''}`}
-                          onClick={() => setTimePeriod('12months')}
-                        >
-                          1Y
-                        </button>
                       </div>
                     </div>
                     <ResponsiveContainer width="100%" height={250}>
@@ -780,13 +1636,13 @@ const Dashboard = ({ onLogout }) => {
                     </ResponsiveContainer>
                     <div className="chart-stats">
                       <div className="chart-stat">
-                        <span className="stat-label-small">Current Month</span>
+                        <span className="stat-label-small">Today</span>
                         <span className="stat-value-small">
                           {growthData.userGrowth[growthData.userGrowth.length - 1]?.value || 0}
                         </span>
                       </div>
                       <div className="chart-stat">
-                        <span className="stat-label-small">6-Month Avg</span>
+                        <span className="stat-label-small">7-Day Avg</span>
                         <span className="stat-value-small">
                           {Math.round(growthData.userGrowth.reduce((sum, d) => sum + d.value, 0) / growthData.userGrowth.length) || 0}
                         </span>
@@ -801,39 +1657,8 @@ const Dashboard = ({ onLogout }) => {
                         <h3>Revenue Trend</h3>
                         <div className="chart-legend">
                           <span className="legend-dot" style={{ background: '#10b981' }}></span>
-                          <span>
-                            {timePeriod === '7days' ? 'Last 7 days' : 
-                             timePeriod === '30days' ? 'Last 30 days' : 
-                             timePeriod === '6months' ? 'Last 6 months' : 
-                             'Last 12 months'}
-                          </span>
+                          <span>Last 7 days</span>
                         </div>
-                      </div>
-                      <div className="time-period-filter-inline">
-                        <button 
-                          className={`period-btn-inline ${timePeriod === '7days' ? 'active' : ''}`}
-                          onClick={() => setTimePeriod('7days')}
-                        >
-                          7D
-                        </button>
-                        <button 
-                          className={`period-btn-inline ${timePeriod === '30days' ? 'active' : ''}`}
-                          onClick={() => setTimePeriod('30days')}
-                        >
-                          30D
-                        </button>
-                        <button 
-                          className={`period-btn-inline ${timePeriod === '6months' ? 'active' : ''}`}
-                          onClick={() => setTimePeriod('6months')}
-                        >
-                          6M
-                        </button>
-                        <button 
-                          className={`period-btn-inline ${timePeriod === '12months' ? 'active' : ''}`}
-                          onClick={() => setTimePeriod('12months')}
-                        >
-                          1Y
-                        </button>
                       </div>
                     </div>
                     <ResponsiveContainer width="100%" height={250}>
@@ -870,13 +1695,13 @@ const Dashboard = ({ onLogout }) => {
                     </ResponsiveContainer>
                     <div className="chart-stats">
                       <div className="chart-stat">
-                        <span className="stat-label-small">Current Month</span>
+                        <span className="stat-label-small">Today</span>
                         <span className="stat-value-small">
                           Rs. {growthData.revenueGrowth[growthData.revenueGrowth.length - 1]?.value.toLocaleString() || 0}
                         </span>
                       </div>
                       <div className="chart-stat">
-                        <span className="stat-label-small">6-Month Avg</span>
+                        <span className="stat-label-small">7-Day Avg</span>
                         <span className="stat-value-small">
                           Rs. {Math.round(growthData.revenueGrowth.reduce((sum, d) => sum + d.value, 0) / growthData.revenueGrowth.length).toLocaleString() || 0}
                         </span>
@@ -974,7 +1799,7 @@ const Dashboard = ({ onLogout }) => {
                         </div>
                       </div>
                     </div>
-                    <button className="view-all-btn">
+                    <button className="view-all-btn" onClick={() => handleTabChange('issues')}>
                       View All Issues →
                     </button>
                   </div>
@@ -1116,6 +1941,41 @@ const Dashboard = ({ onLogout }) => {
             <span className="sidebar-badge">{stats.pendingBookings}</span>
           )}
         </button>
+
+        <button 
+          className={`sidebar-item ${activeTab === 'analytics' ? 'active' : ''}`}
+          onClick={() => handleTabChange('analytics')}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="12" y1="20" x2="12" y2="10" />
+            <line x1="18" y1="20" x2="18" y2="4" />
+            <line x1="6" y1="20" x2="6" y2="16" />
+          </svg>
+          <span>Basic Analytics</span>
+        </button>
+
+        <button 
+          className={`sidebar-item ${activeTab === 'issues' ? 'active' : ''}`}
+          onClick={() => handleTabChange('issues')}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <span>Issues</span>
+        </button>
+
+        <button 
+          className={`sidebar-item ${activeTab === 'settings' ? 'active' : ''}`}
+          onClick={() => handleTabChange('settings')}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 1v6m0 6v6m5.2-13.2l-4.2 4.2m0 6l4.2 4.2M23 12h-6m-6 0H1m18.2 5.2l-4.2-4.2m0-6l-4.2-4.2" />
+          </svg>
+          <span>Settings</span>
+        </button>
       </aside>
 
       <div className="main-content">
@@ -1200,11 +2060,6 @@ const Dashboard = ({ onLogout }) => {
               </svg>
             </span>
             <input type="text" placeholder="Search users, jobs, or accounts..." />
-            <span className="filter-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-              </svg>
-            </span>
           </div>
 
           <div className="tabs">
