@@ -17,6 +17,39 @@
   bottom: 0;
   z-index: 50;
   box-shadow: 4px 0 20px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.sidebar.closed {
+  width: 70px;
+  padding: 20px 0;
+}
+
+.sidebar-toggle-btn {
+  position: absolute;
+  top: 20px;
+  right: 15px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 51;
+}
+
+.sidebar-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.sidebar.closed .sidebar-toggle-btn {
+  right: 50%;
+  transform: translateX(50%);
 }
 
 .sidebar-logo {
@@ -27,6 +60,12 @@
   margin-bottom: 40px;
   padding: 0 20px 30px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.sidebar.closed .sidebar-logo {
+  padding: 0 10px 20px;
+  margin-bottom: 30px;
 }
 
 .sidebar-logo-image {
@@ -35,6 +74,12 @@
   border-radius: 50%;
   object-fit: cover;
   border: 3px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+}
+
+.sidebar.closed .sidebar-logo-image {
+  width: 40px;
+  height: 40px;
 }
 
 .sidebar-logo h2 {
@@ -43,6 +88,11 @@
   color: #ffffff;
   text-align: center;
   margin: 0;
+  transition: all 0.3s ease;
+}
+
+.sidebar.closed .sidebar-logo h2 {
+  display: none;
 }
 
 .sidebar-logo p {
@@ -50,6 +100,11 @@
   color: rgba(255, 255, 255, 0.6);
   text-align: center;
   margin-top: -8px;
+  transition: all 0.3s ease;
+}
+
+.sidebar.closed .sidebar-logo p {
+  display: none;
 }
 
 .sidebar-item {
@@ -69,6 +124,25 @@
   width: 100%;
   position: relative;
   border-left: 4px solid transparent;
+}
+
+.sidebar.closed .sidebar-item {
+  padding: 14px 0;
+  justify-content: center;
+  gap: 0;
+}
+
+.sidebar.closed .sidebar-item span {
+  display: none;
+}
+
+.sidebar.closed .sidebar-badge {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  min-width: 18px;
+  height: 18px;
+  padding: 2px 5px;
 }
 
 .sidebar-item svg {
@@ -107,6 +181,11 @@
   overflow: hidden;
   margin-left: 260px;
   background: #f5f9fa;
+  transition: margin-left 0.3s ease;
+}
+
+.sidebar.closed ~ .main-content {
+  margin-left: 70px;
 }
 
 .dashboard-header {

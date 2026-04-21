@@ -1,13 +1,34 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import './JobDetailModal.css';
+import { bookingsAPI } from '../services/api';
 
-const JobDetailModal = ({ job, onClose, onApprove, onDelete }) => {
+const JobDetailModal = ({ job, onClose, onApprove, onDelete, onToggleStatus }) => {
+  const [jobBookings, setJobBookings] = useState([]);
+  const [loadingBookings, setLoadingBookings] = useState(true);
+
   useEffect(() => {
-    document.body.classList.add('modal-open');
-    return () => {
-      document.body.classList.remove('modal-open');
-    };
-  }, []);
+    if (job) {
+      fetchJobBookings();
+    }
+  }, [job]);
+
+  const fetchJobBookings = async () => {
+    try {
+      setLoadingBookings(true);
+      const bookingsRes = await bookingsAPI.getAll();
+      
+      // Filter bookings related to this job
+      const relatedBookings = bookingsRes.data.filter(booking =>
+        booking.jobId === job._id || booking.workerJobOfferId === job._id
+      );
+
+      setJobBookings(relatedBookings);
+    } catch (error) {
+      console.error('Error fetching job bookings:', error);
+    } finally {
+      setLoadingBookings(false);
+    }
+  };
 
   if (!job) return null;
 
@@ -16,265 +37,229 @@ const JobDetailModal = ({ job, onClose, onApprove, onDelete }) => {
     return date.toLocaleDateString('en-US', { 
       year: 'numeric', 
       month: 'long', 
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      day: 'numeric' 
     });
   };
 
   return (
-    <div className="job-modal-overlay" onClick={onClose}>
-      <div className="job-modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="job-modal-header">
-          <h2>Job Details</h2>
-          <button className="close-btn" onClick={onClose}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
+    <div className="job-detail-page">
+      <div className="job-detail-container">
+        {/* Back Button */}
+        <button className="back-to-jobs-btn" onClick={onClose}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="19" y1="12" x2="5" y2="12" />
+            <polyline points="12 19 5 12 12 5" />
+          </svg>
+          Back to Jobs
+        </button>
+
+        {/* Job Header Card */}
+        <div className="job-header-card">
+          <div className="job-header-info">
+            <h2 className="job-title-new">{job.title}</h2>
+            <p className="job-posted-by">Posted by: {job.postedBy?.name || 'Unknown'}</p>
+            <div className="job-badges-new">
+              <span className={`badge-new ${job.type}`}>
+                {job.type === 'worker' ? 'Job Seeker' : 'Employer'}
+              </span>
+              <span className={`badge-new ${job.isApproved ? 'approved' : 'pending'}`}>
+                {job.isApproved ? 'Approved' : 'Pending'}
+              </span>
+              {job.urgent && <span className="badge-new urgent">Urgent</span>}
+              <span className={`badge-new ${job.status}`}>{job.status}</span>
+            </div>
+          </div>
         </div>
 
-        <div className="job-modal-body">
-          {/* Job Header */}
-          <div className="job-header-section">
-            <div className="job-title-area">
-              <h3>{job.title}</h3>
-              <div className="job-badges">
-                <span className={`badge ${job.type}`}>
-                  {job.type === 'worker' ? 'Job Seeker' : 'Employer'}
-                </span>
-                <span className={`badge ${job.isApproved ? 'approved' : 'pending'}`}>
-                  {job.isApproved ? 'Approved' : 'Pending Approval'}
-                </span>
-                {job.urgent && (
-                  <span className="badge urgent">Urgent</span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Posted By */}
-          {job.postedBy && (
-            <div className="posted-by-section">
-              <h4>Posted By</h4>
-              <div className="posted-by-info">
-                <div className="poster-avatar">
-                  {job.postedBy.profilePhoto ? (
-                    <img 
-                      src={`http://localhost:3001/${job.postedBy.profilePhoto}`}
-                      alt={job.postedBy.name}
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                        e.target.nextSibling.style.display = 'flex';
-                      }}
-                    />
-                  ) : null}
-                  <span style={{ display: job.postedBy.profilePhoto ? 'none' : 'flex' }}>
-                    {job.postedBy.name?.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-                <div>
-                  <p className="poster-name">{job.postedBy.name}</p>
-                  <p className="poster-type">{job.postedBy.type}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Description */}
-          <div className="job-section">
-            <h4>Description</h4>
-            <p className="job-description-text">{job.description}</p>
-          </div>
-
-          {/* Job Details Grid */}
-          <div className="job-details-grid">
-            <div className="detail-item">
-              <div className="detail-label">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        {/* Job Information Card */}
+        <div className="info-card-new">
+          <h3 className="card-title-new">Job Information</h3>
+          <div className="info-grid-new">
+            <div className="info-field-new">
+              <div className="field-icon-new">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                   <circle cx="12" cy="10" r="3" />
                 </svg>
-                Location
               </div>
-              <div className="detail-value">{job.location || 'Not specified'}</div>
+              <div className="field-content-new">
+                <div className="field-label-new">Location</div>
+                <div className="field-value-new">{job.location || 'Not specified'}</div>
+              </div>
             </div>
 
-            {job.budget && (
-              <div className="detail-item">
-                <div className="detail-label">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="12" y1="1" x2="12" y2="23" />
-                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                  </svg>
-                  {job.type === 'worker' ? 'Expected Salary' : 'Budget'}
-                </div>
-                <div className="detail-value">NPR {job.budget}</div>
-              </div>
-            )}
-
-            <div className="detail-item">
-              <div className="detail-label">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <polyline points="12 6 12 12 16 14" />
+            <div className="info-field-new">
+              <div className="field-icon-new">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="12" y1="1" x2="12" y2="23" />
+                  <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
                 </svg>
-                Status
               </div>
-              <div className="detail-value">
-                <span className={`status-indicator ${job.status}`}>{job.status}</span>
+              <div className="field-content-new">
+                <div className="field-label-new">Budget</div>
+                <div className="field-value-new">NPR {job.budget || 'Not specified'}</div>
               </div>
             </div>
 
-            <div className="detail-item">
-              <div className="detail-label">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <div className="info-field-new">
+              <div className="field-icon-new">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
                   <line x1="16" y1="2" x2="16" y2="6" />
                   <line x1="8" y1="2" x2="8" y2="6" />
                   <line x1="3" y1="10" x2="21" y2="10" />
                 </svg>
-                Posted Date
               </div>
-              <div className="detail-value">{formatDate(job.createdAt)}</div>
+              <div className="field-content-new">
+                <div className="field-label-new">Posted Date</div>
+                <div className="field-value-new">{formatDate(job.createdAt)}</div>
+              </div>
             </div>
 
-            {job.availability && (
-              <div className="detail-item">
-                <div className="detail-label">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10" />
-                    <polyline points="12 6 12 12 16 14" />
-                  </svg>
-                  Availability
-                </div>
-                <div className="detail-value">{job.availability}</div>
+            <div className="info-field-new">
+              <div className="field-icon-new">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 6v6l4 2" />
+                </svg>
               </div>
-            )}
-
-            {job.experience && (
-              <div className="detail-item">
-                <div className="detail-label">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                    <path d="M2 17l10 5 10-5" />
-                    <path d="M2 12l10 5 10-5" />
-                  </svg>
-                  Experience
-                </div>
-                <div className="detail-value">{job.experience}</div>
+              <div className="field-content-new">
+                <div className="field-label-new">Status</div>
+                <div className="field-value-new">{job.status}</div>
               </div>
-            )}
+            </div>
+          </div>
+        </div>
 
-            {job.duration && (
-              <div className="detail-item">
-                <div className="detail-label">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10" />
-                    <polyline points="12 6 12 12 16 14" />
-                  </svg>
-                  Duration
-                </div>
-                <div className="detail-value">{job.duration}</div>
-              </div>
-            )}
+        {/* Description Card */}
+        <div className="info-card-new">
+          <h3 className="card-title-new">Description</h3>
+          <p className="job-description-full">{job.description}</p>
+        </div>
 
-            {job.rateType && (
-              <div className="detail-item">
-                <div className="detail-label">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="12" y1="1" x2="12" y2="23" />
-                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                  </svg>
-                  Rate Type
-                </div>
-                <div className="detail-value">{job.rateType}</div>
-              </div>
-            )}
+        {/* Skills Card (if available) */}
+        {job.skills && job.skills.length > 0 && (
+          <div className="info-card-new">
+            <h3 className="card-title-new">Required Skills</h3>
+            <div className="skills-list-job">
+              {job.skills.map((skill, index) => (
+                <span key={index} className="skill-tag">{skill}</span>
+              ))}
+            </div>
+          </div>
+        )}
 
-            {job.paymentType && (
-              <div className="detail-item">
-                <div className="detail-label">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="12" y1="1" x2="12" y2="23" />
-                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                  </svg>
-                  Payment Type
+        {/* Bookings Card */}
+        <div className="info-card-new">
+          <div className="activity-card-header">
+            <h3 className="card-title-new">Bookings for this Job</h3>
+            <span className="activity-count">{jobBookings.length}</span>
+          </div>
+          <div className="activity-list">
+            {loadingBookings ? (
+              <div className="empty-activity">Loading...</div>
+            ) : jobBookings.length > 0 ? (
+              jobBookings.map(booking => (
+                <div key={booking._id} className="activity-item">
+                  <div className="activity-item-header">
+                    <div className="activity-item-title">
+                      {booking.workerName || booking.employerName || 'Booking'}
+                    </div>
+                    <span className={`activity-item-status ${booking.bookingStatus || 'pending'}`}>
+                      {booking.bookingStatus || 'pending'}
+                    </span>
+                  </div>
+                  <div className="activity-item-meta">
+                    <span>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <line x1="12" y1="1" x2="12" y2="23" />
+                        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                      </svg>
+                      Rs. {booking.totalAmount || 'N/A'}
+                    </span>
+                    <span>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12 6 12 12 16 14" />
+                      </svg>
+                      {formatDate(booking.createdAt)}
+                    </span>
+                  </div>
                 </div>
-                <div className="detail-value">{job.paymentType}</div>
+              ))
+            ) : (
+              <div className="empty-activity">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+                <p>No bookings found</p>
               </div>
             )}
           </div>
+        </div>
 
-          {/* Skills */}
-          {job.skills && job.skills.length > 0 && (
-            <div className="job-section">
-              <h4>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                  <path d="M2 17l10 5 10-5" />
-                  <path d="M2 12l10 5 10-5" />
-                </svg>
-                {job.type === 'worker' ? 'Skills' : 'Required Skills'}
-              </h4>
-              <div className="skills-list-modal">
-                {job.skills.map((skill, index) => (
-                  <span key={index} className="skill-tag-modal">{skill}</span>
-                ))}
+        {/* Admin Actions Card */}
+        <div className="info-card-new">
+          <h3 className="card-title-new">Admin Actions</h3>
+          <div className="admin-actions-section">
+            <div className="current-status-section">
+              <div className="status-label-new">Current Status</div>
+              <span className={`status-badge-new ${job.isApproved ? 'approved' : 'pending'}`}>
+                {job.isApproved ? 'Approved' : 'Pending Approval'}
+              </span>
+            </div>
+            
+            <div className="actions-buttons-section">
+              <div className="actions-label-new">Actions</div>
+              <div className="action-buttons-new">
+                {!job.isApproved && onApprove && (
+                  <button 
+                    className="action-btn-new approve"
+                    onClick={() => {
+                      onApprove(job._id, job.title, job.collection);
+                      onClose();
+                    }}
+                  >
+                    Approve Job
+                  </button>
+                )}
+                {onToggleStatus && (
+                  <button 
+                    className="action-btn-new"
+                    onClick={() => {
+                      onToggleStatus(job._id);
+                      onClose();
+                    }}
+                  >
+                    Toggle Status
+                  </button>
+                )}
+                {onDelete && (
+                  <button 
+                    className="action-btn-new reject"
+                    onClick={() => {
+                      onDelete(job._id, job.title, job.collection);
+                      onClose();
+                    }}
+                  >
+                    Delete Job
+                  </button>
+                )}
               </div>
             </div>
-          )}
 
-          {/* Applicants (for employer jobs) */}
-          {job.type === 'employer' && job.applicants && (
-            <div className="job-section">
-              <h4>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
-                Applicants
-              </h4>
-              <p className="applicants-count">{job.applicants.length} applicant(s)</p>
+            <div className="admin-notes-section">
+              <div className="notes-label-new">Admin Notes</div>
+              <textarea 
+                className="admin-notes-textarea"
+                placeholder="Add notes about this job post..."
+                rows="4"
+              ></textarea>
+              <button className="save-notes-btn">Save Notes</button>
             </div>
-          )}
-
-          {/* Action Buttons */}
-          <div className="job-modal-actions">
-            {!job.isApproved && onApprove && (
-              <button 
-                className="modal-approve-btn"
-                onClick={() => {
-                  onApprove(job._id, job.title, job.collection);
-                  onClose();
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-                Approve Job
-              </button>
-            )}
-            {onDelete && (
-              <button 
-                className="modal-delete-btn"
-                onClick={() => {
-                  if (window.confirm(`Are you sure you want to delete "${job.title}"?`)) {
-                    onDelete(job._id, job.title, job.collection);
-                    onClose();
-                  }
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                </svg>
-                Delete Job
-              </button>
-            )}
           </div>
         </div>
       </div>

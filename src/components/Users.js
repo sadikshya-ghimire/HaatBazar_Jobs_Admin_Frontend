@@ -202,7 +202,14 @@ const Users = () => {
   };
 
   return (
-    <div className="users-container">
+    <>
+      {selectedUser ? (
+        <UserDetailModal 
+          user={selectedUser} 
+          onClose={() => setSelectedUser(null)} 
+        />
+      ) : (
+        <div className="users-container">
       <div className="users-header">
         <h2>User Management</h2>
         <div className="users-stats">
@@ -494,14 +501,9 @@ const Users = () => {
           </table>
         </div>
       )}
-
-      {selectedUser && (
-        <UserDetailModal 
-          user={selectedUser} 
-          onClose={() => setSelectedUser(null)} 
-        />
+        </div>
       )}
-    </div>
+    </>
   );
 };
 
