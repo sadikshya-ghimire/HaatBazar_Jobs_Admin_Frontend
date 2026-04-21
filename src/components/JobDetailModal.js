@@ -60,7 +60,7 @@ const JobDetailModal = ({ job, onClose, onApprove, onDelete, onToggleStatus }) =
             <p className="job-posted-by">Posted by: {job.postedBy?.name || 'Unknown'}</p>
             <div className="job-badges-new">
               <span className={`badge-new ${job.type}`}>
-                {job.type === 'worker' ? 'Job Seeker' : 'Employer'}
+                {job.type === 'worker' ? 'Worker' : 'Employer'}
               </span>
               <span className={`badge-new ${job.isApproved ? 'approved' : 'pending'}`}>
                 {job.isApproved ? 'Approved' : 'Pending'}

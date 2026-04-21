@@ -190,7 +190,7 @@ const JobPosts = () => {
                       </td>
                       <td>
                         <span className={`type-badge ${job.type}`}>
-                          {job.type === 'worker' ? 'Job Seeker' : 'Employer'}
+                          {job.type === 'worker' ? 'Worker' : 'Employer'}
                         </span>
                       </td>
                       <td>{job.location || 'Not specified'}</td>
