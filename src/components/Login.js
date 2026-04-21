@@ -14,6 +14,10 @@ const Login = ({ onLogin }) => {
     setLoading(true);
 
     try {
+      // Clear any old tokens first
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      
       const response = await authAPI.login(email, password);
       const { token, type, status } = response.data;
 
@@ -38,7 +42,9 @@ const Login = ({ onLogin }) => {
       // Call onLogin callback
       onLogin(response.data);
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed. Please try again.');
+      console.error('Login error:', err);
+      const errorMessage = err.response?.data?.message || 'Login failed. Please check your credentials and try again.';
+      setError(errorMessage);
       setLoading(false);
     }
   };

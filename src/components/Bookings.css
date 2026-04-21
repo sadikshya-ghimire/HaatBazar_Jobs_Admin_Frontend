@@ -215,6 +215,16 @@
   color: #2d3748;
 }
 
+.payment-method-text {
+  padding: 6px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+  background: rgba(79, 172, 184, 0.15);
+  color: #4facb8;
+}
+
 .payment-badge {
   padding: 6px 12px;
   border-radius: 12px;

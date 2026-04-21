@@ -26,13 +26,22 @@ api.interceptors.request.use(
   }
 );
 
-// Add response interceptor for debugging
+// Add response interceptor for debugging and auto-logout on 401
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
       console.error('401 Unauthorized - Token may be invalid');
       console.log('Response:', error.response.data);
+      
+      // Auto logout on 401
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      
+      // Reload to login page
+      if (window.location.pathname !== '/') {
+        window.location.href = '/';
+      }
     }
     return Promise.reject(error);
   }

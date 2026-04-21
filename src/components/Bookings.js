@@ -63,16 +63,6 @@ const Bookings = () => {
     }
   };
 
-  const handlePaymentUpdate = async (id, status) => {
-    try {
-      await bookingsAPI.updatePayment(id, status);
-      fetchBookings();
-    } catch (err) {
-      console.error('Error updating payment:', err);
-      alert('Failed to update payment status');
-    }
-  };
-
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this booking?')) {
       try {
@@ -111,6 +101,9 @@ const Bookings = () => {
   };
 
   const filteredBookings = bookings.filter(booking => {
+    // Only show bookings where paymentCompleted is true
+    if (!booking.paymentCompleted) return false;
+    
     if (filter === 'all') return true;
     // Check both bookingStatus and status fields
     return booking.bookingStatus === filter || booking.status === filter;
@@ -124,15 +117,6 @@ const Bookings = () => {
       case 'rejected': return 'red';
       case 'completed': return 'blue';
       case 'cancelled': return 'gray';
-      default: return 'gray';
-    }
-  };
-
-  const getPaymentStatusColor = (status) => {
-    switch (status) {
-      case 'paid': return 'green';
-      case 'pending': return 'orange';
-      case 'failed': return 'red';
       default: return 'gray';
     }
   };
@@ -285,28 +269,16 @@ const Bookings = () => {
               <div className="payment-section">
                 <div className="payment-status">
                   <span>Payment Status:</span>
-                  <span className={`payment-badge ${getPaymentStatusColor(booking.paymentStatus)}`}>
-                    {booking.paymentStatus}
+                  <span className={`payment-badge ${booking.paymentCompleted ? 'green' : 'orange'}`}>
+                    {booking.paymentCompleted ? 'Paid' : 'Pending'}
                   </span>
                 </div>
-                {(booking.bookingStatus === 'pending' || booking.status === 'pending' || booking.status === 'accepted') && 
-                 !(booking.bookingStatus === 'approved' || booking.status === 'approved') && 
-                 !(booking.bookingStatus === 'rejected' || booking.status === 'rejected') && (
-                  <div className="payment-actions">
-                    <button 
-                      className="payment-btn paid"
-                      onClick={() => handlePaymentUpdate(booking._id, 'paid')}
-                      disabled={booking.paymentStatus === 'paid'}
-                    >
-                      Mark Paid
-                    </button>
-                    <button 
-                      className="payment-btn failed"
-                      onClick={() => handlePaymentUpdate(booking._id, 'failed')}
-                      disabled={booking.paymentStatus === 'failed'}
-                    >
-                      Mark Failed
-                    </button>
+                {booking.paymentMethod && (
+                  <div className="payment-status">
+                    <span>Payment Method:</span>
+                    <span className="payment-method-text">
+                      {booking.paymentMethod}
+                    </span>
                   </div>
                 )}
               </div>
@@ -391,7 +363,10 @@ const Bookings = () => {
               <div className="detail-section">
                 <h3>Status Information</h3>
                 <p><strong>Booking Status:</strong> <span className={`status-badge-booking ${getStatusColor(selectedBooking.bookingStatus)}`}>{selectedBooking.bookingStatus}</span></p>
-                <p><strong>Payment Status:</strong> <span className={`payment-badge ${getPaymentStatusColor(selectedBooking.paymentStatus)}`}>{selectedBooking.paymentStatus}</span></p>
+                <p><strong>Payment Status:</strong> <span className={`payment-badge ${selectedBooking.paymentCompleted ? 'green' : 'orange'}`}>{selectedBooking.paymentCompleted ? 'Paid' : 'Pending'}</span></p>
+                {selectedBooking.paymentMethod && (
+                  <p><strong>Payment Method:</strong> {selectedBooking.paymentMethod}</p>
+                )}
                 <p><strong>Created:</strong> {new Date(selectedBooking.createdAt).toLocaleString()}</p>
               </div>
 

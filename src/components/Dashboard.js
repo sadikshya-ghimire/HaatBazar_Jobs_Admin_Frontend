@@ -4,6 +4,7 @@ import Users from './Users';
 import JobPosts from './JobPosts';
 import Bookings from './Bookings';
 import { usersAPI, jobsAPI, bookingsAPI } from '../services/api';
+import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const Dashboard = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -14,7 +15,23 @@ const Dashboard = ({ onLogout }) => {
     activeJobs: 0,
     completedJobs: 0,
     totalBookings: 0,
-    pendingBookings: 0
+    pendingBookings: 0,
+    newUsersThisWeek: 0,
+    totalRevenue: 0,
+    revenueGrowth: 0,
+    userGrowth: 0
+  });
+  const [insights, setInsights] = useState({
+    mostPopularSkill: '',
+    mostActiveUser: '',
+    jobsPostedToday: 0,
+    pendingDisputes: 0,
+    reportedUsers: 0,
+    failedPayments: 0
+  });
+  const [growthData, setGrowthData] = useState({
+    userGrowth: [],
+    revenueGrowth: []
   });
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -170,6 +187,20 @@ const Dashboard = ({ onLogout }) => {
       // Calculate stats
       const activeUsers = allUsers.filter(u => u.type !== 'admin' && u.status === 'active');
       
+      // Calculate new users this week
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      const newUsersThisWeek = allUsers.filter(u => new Date(u.createdAt) > oneWeekAgo).length;
+      
+      // Calculate user growth percentage
+      const twoWeeksAgo = new Date();
+      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+      const usersLastWeek = allUsers.filter(u => {
+        const createdDate = new Date(u.createdAt);
+        return createdDate > twoWeeksAgo && createdDate <= oneWeekAgo;
+      }).length;
+      const userGrowth = usersLastWeek > 0 ? ((newUsersThisWeek - usersLastWeek) / usersLastWeek * 100).toFixed(1) : 0;
+      
       // Fetch jobs
       const jobsResponse = await jobsAPI.getAll();
       const allJobs = jobsResponse.data;
@@ -178,10 +209,52 @@ const Dashboard = ({ onLogout }) => {
       const activeJobsCount = allJobs.filter(j => j.status === 'active').length;
       const completedJobsCount = allJobs.filter(j => j.status === 'completed').length;
       
+      // Jobs posted today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const jobsPostedToday = allJobs.filter(j => new Date(j.createdAt) >= today).length;
+      
       // Fetch bookings
       const bookingsResponse = await bookingsAPI.getAll();
       const allBookings = bookingsResponse.data;
       const pendingBookingsCount = allBookings.filter(b => b.bookingStatus === 'pending').length;
+      
+      // Calculate revenue (sum of completed bookings with payment)
+      const totalRevenue = allBookings
+        .filter(b => b.paymentCompleted && b.totalAmount)
+        .reduce((sum, b) => sum + (parseFloat(b.totalAmount) || 0), 0);
+      
+      // Calculate revenue growth
+      const revenueLastMonth = allBookings
+        .filter(b => {
+          const bookingDate = new Date(b.createdAt);
+          const lastMonth = new Date();
+          lastMonth.setMonth(lastMonth.getMonth() - 1);
+          return b.paymentCompleted && bookingDate <= lastMonth;
+        })
+        .reduce((sum, b) => sum + (parseFloat(b.totalAmount) || 0), 0);
+      const revenueGrowth = revenueLastMonth > 0 ? ((totalRevenue - revenueLastMonth) / revenueLastMonth * 100).toFixed(1) : 0;
+      
+      // Find most popular skill
+      const skillCounts = {};
+      allUsers.forEach(user => {
+        if (user.skills && Array.isArray(user.skills)) {
+          user.skills.forEach(skill => {
+            skillCounts[skill] = (skillCounts[skill] || 0) + 1;
+          });
+        }
+      });
+      const mostPopularSkill = Object.keys(skillCounts).length > 0
+        ? Object.entries(skillCounts).sort((a, b) => b[1] - a[1])[0][0]
+        : 'N/A';
+      
+      // Find most active user (most jobs completed)
+      const mostActiveUser = allUsers.length > 0
+        ? allUsers.sort((a, b) => (b.jobsCompleted || 0) - (a.jobsCompleted || 0))[0]?.name || 'N/A'
+        : 'N/A';
+      
+      // Failed payments
+      const failedPayments = allBookings.filter(b => b.paymentStatus === 'failed').length;
       
       setStats({
         totalUsers: activeUsers.length,
@@ -190,17 +263,71 @@ const Dashboard = ({ onLogout }) => {
         activeJobs: activeJobsCount,
         completedJobs: completedJobsCount,
         totalBookings: allBookings.length,
-        pendingBookings: pendingBookingsCount
+        pendingBookings: pendingBookingsCount,
+        newUsersThisWeek,
+        totalRevenue,
+        revenueGrowth,
+        userGrowth
+      });
+      
+      setInsights({
+        mostPopularSkill,
+        mostActiveUser,
+        jobsPostedToday,
+        pendingDisputes: 0, // Would need dispute collection
+        reportedUsers: 0, // Would need reports collection
+        failedPayments
       });
 
-      // Get recent activities (last 5 users and jobs)
+      // Calculate growth data for charts (last 6 months)
+      const monthlyUserGrowth = [];
+      const monthlyRevenue = [];
+      
+      for (let i = 5; i >= 0; i--) {
+        const monthDate = new Date();
+        monthDate.setMonth(monthDate.getMonth() - i);
+        const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+        const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+        
+        // Count users registered in this month
+        const usersInMonth = allUsers.filter(u => {
+          const createdDate = new Date(u.createdAt);
+          return createdDate >= monthStart && createdDate <= monthEnd;
+        }).length;
+        
+        // Calculate revenue for this month
+        const revenueInMonth = allBookings
+          .filter(b => {
+            if (!b.paymentCompleted || !b.createdAt) return false;
+            const bookingDate = new Date(b.createdAt);
+            return bookingDate >= monthStart && bookingDate <= monthEnd;
+          })
+          .reduce((sum, b) => sum + (parseFloat(b.totalAmount) || 0), 0);
+        
+        monthlyUserGrowth.push({
+          month: monthDate.toLocaleDateString('en-US', { month: 'short' }),
+          value: usersInMonth
+        });
+        
+        monthlyRevenue.push({
+          month: monthDate.toLocaleDateString('en-US', { month: 'short' }),
+          value: revenueInMonth
+        });
+      }
+      
+      setGrowthData({
+        userGrowth: monthlyUserGrowth,
+        revenueGrowth: monthlyRevenue
+      });
+
+      // Get recent activities (last 10 users and jobs)
       const recentActivities = [];
       
       // Add recent user registrations (combine active and pending)
       const allUsersForActivity = [...allUsers, ...pendingUsers];
       const recentUsers = [...allUsersForActivity]
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-        .slice(0, 3);
+        .slice(0, 5);
       
       recentUsers.forEach(user => {
         recentActivities.push({
@@ -208,14 +335,15 @@ const Dashboard = ({ onLogout }) => {
           type: `New ${user.type} registration`,
           name: user.name,
           time: getTimeAgo(user.createdAt),
-          color: user.type === 'worker' ? 'green' : 'yellow'
+          color: user.type === 'worker' ? 'green' : 'yellow',
+          icon: 'user'
         });
       });
 
       // Add recent job posts
       const recentJobs = [...allJobs]
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-        .slice(0, 2);
+        .slice(0, 3);
       
       recentJobs.forEach(job => {
         recentActivities.push({
@@ -223,12 +351,30 @@ const Dashboard = ({ onLogout }) => {
           type: 'Job posted',
           name: job.title,
           time: getTimeAgo(job.createdAt),
-          color: 'blue'
+          color: 'blue',
+          icon: 'briefcase'
+        });
+      });
+      
+      // Add recent completed bookings
+      const recentBookings = [...allBookings]
+        .filter(b => b.paymentCompleted)
+        .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+        .slice(0, 2);
+      
+      recentBookings.forEach(booking => {
+        recentActivities.push({
+          id: `booking-${booking._id}`,
+          type: 'Payment completed',
+          name: `Rs. ${booking.totalAmount || 'N/A'}`,
+          time: getTimeAgo(booking.updatedAt),
+          color: 'green',
+          icon: 'dollar'
         });
       });
 
-      // Sort by time and take top 5
-      setActivities(recentActivities.slice(0, 5));
+      // Sort by time and take top 10
+      setActivities(recentActivities.slice(0, 10));
       
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -297,6 +443,48 @@ const Dashboard = ({ onLogout }) => {
     }
   };
 
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="custom-tooltip">
+          <p className="tooltip-label">{label}</p>
+          <p className="tooltip-value" style={{ color: payload[0].color }}>
+            {payload[0].name}: {payload[0].value}
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const getActivityIcon = (iconType) => {
+    switch (iconType) {
+      case 'user':
+        return (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+        );
+      case 'briefcase':
+        return (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+          </svg>
+        );
+      case 'dollar':
+        return (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="12" y1="1" x2="12" y2="23" />
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+          </svg>
+        );
+      default:
+        return null;
+    }
+  };
+
   const getNotificationIcon = (iconType) => {
     switch (iconType) {
       case 'user':
@@ -325,8 +513,7 @@ const Dashboard = ({ onLogout }) => {
       case 'check':
         return (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-            <polyline points="22 4 12 14.01 9 11.01" />
+            <polyline points="20 6 9 17 4 12" />
           </svg>
         );
       default:
@@ -339,7 +526,9 @@ const Dashboard = ({ onLogout }) => {
       id: 1,
       label: 'Total Users',
       value: stats.totalUsers.toString(),
-      description: 'Active members',
+      description: 'vs last month',
+      growth: `${stats.userGrowth}%`,
+      growthPositive: stats.userGrowth >= 0,
       badge: '',
       color: 'blue',
       icon: (
@@ -353,57 +542,50 @@ const Dashboard = ({ onLogout }) => {
     },
     {
       id: 2,
-      label: 'Pending Approvals',
-      value: stats.pendingApprovals.toString(),
-      description: 'User accounts',
-      badge: stats.pendingApprovals > 0 ? stats.pendingApprovals.toString() : '',
-      color: 'orange',
+      label: 'Active Jobs',
+      value: stats.activeJobs.toString(),
+      description: 'vs last month',
+      growth: '',
+      badge: '',
+      color: 'purple',
       icon: (
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="12" cy="12" r="10" />
-          <polyline points="12 6 12 12 16 14" />
+          <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+          <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
         </svg>
       )
     },
     {
       id: 3,
-      label: 'Pending Jobs',
-      value: stats.pendingJobs.toString(),
-      description: 'Awaiting approval',
-      badge: stats.pendingJobs > 0 ? stats.pendingJobs.toString() : '',
-      color: 'yellow',
+      label: 'Total Revenue',
+      value: `Rs. ${stats.totalRevenue.toLocaleString()}`,
+      description: 'vs last month',
+      growth: `${stats.revenueGrowth}%`,
+      growthPositive: stats.revenueGrowth >= 0,
+      badge: '',
+      color: 'green',
       icon: (
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
-          <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+          <line x1="12" y1="1" x2="12" y2="23" />
+          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
         </svg>
       )
     },
     {
       id: 4,
-      label: 'Active Jobs',
-      value: stats.activeJobs.toString(),
-      description: 'Currently open',
+      label: 'New Users (Week)',
+      value: stats.newUsersThisWeek.toString(),
+      description: 'vs last week',
+      growth: `${stats.userGrowth}%`,
+      growthPositive: stats.userGrowth >= 0,
       badge: '',
-      color: 'green',
+      color: 'pink',
       icon: (
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
-          <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
-        </svg>
-      )
-    },
-    {
-      id: 5,
-      label: 'Completed Jobs',
-      value: stats.completedJobs.toString(),
-      description: 'All-time total',
-      badge: '',
-      color: 'purple',
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-          <polyline points="22 4 12 14.01 9 11.01" />
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <line x1="19" y1="8" x2="19" y2="14" />
+          <line x1="22" y1="11" x2="16" y2="11" />
         </svg>
       )
     }
@@ -431,46 +613,288 @@ const Dashboard = ({ onLogout }) => {
                 <div className="stats-grid">
                   {statsData.map(stat => (
                     <div key={stat.id} className={`stat-card ${stat.color}`}>
-                      <div className="stat-header">
-                        <div className="stat-icon">{stat.icon}</div>
-                        {stat.badge && <div className="stat-badge">{stat.badge}</div>}
-                      </div>
-                      <div className="stat-content">
-                        <div className="stat-label">{stat.label}</div>
-                        <div className="stat-value">{stat.value}</div>
-                        <div className="stat-description">{stat.description}</div>
+                      <div className="stat-body">
+                        <div className="stat-info">
+                          <div className="stat-label">{stat.label}</div>
+                          <div className="stat-value">{stat.value}</div>
+                          {stat.growth && (
+                            <div className={`stat-growth-inline ${stat.growthPositive ? 'positive' : 'negative'}`}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                <polyline points={stat.growthPositive ? "18 15 12 9 6 15" : "18 9 12 15 6 9"} />
+                              </svg>
+                              {stat.growth} {stat.description}
+                            </div>
+                          )}
+                        </div>
+                        <div className="stat-icon-wrapper">
+                          <div className="stat-icon">{stat.icon}</div>
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                <div className="activity-section">
-                  <div className="activity-header">
-                    <div className="activity-icon">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-                      </svg>
-                    </div>
-                    <h2>Recent Activity</h2>
-                  </div>
-                  <div className="activity-list">
-                    {activities.length > 0 ? (
-                      activities.map(activity => (
-                        <div key={activity.id} className={`activity-item ${activity.color}`}>
-                          <div className="activity-content">
-                            <div className={`activity-dot ${activity.color}`}></div>
-                            <div className="activity-text">
-                              {activity.type}: <strong>{activity.name}</strong>
-                            </div>
-                          </div>
-                          <div className="activity-time">{activity.time}</div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="no-activity">
-                        <p>No recent activity</p>
+                {/* Growth Charts */}
+                <div className="charts-section">
+                  {/* User Growth Chart */}
+                  <div className="chart-card">
+                    <div className="chart-header">
+                      <h3>User Growth</h3>
+                      <div className="chart-legend">
+                        <span className="legend-dot" style={{ background: '#4facb8' }}></span>
+                        <span>Last 6 months</span>
                       </div>
-                    )}
+                    </div>
+                    <ResponsiveContainer width="100%" height={250}>
+                      <AreaChart data={growthData.userGrowth} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#4facb8" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#4facb8" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                        <XAxis 
+                          dataKey="month" 
+                          stroke="#9ca3af" 
+                          style={{ fontSize: '12px' }}
+                          tickLine={false}
+                        />
+                        <YAxis 
+                          stroke="#9ca3af" 
+                          style={{ fontSize: '12px' }}
+                          tickLine={false}
+                        />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Area 
+                          type="monotone" 
+                          dataKey="value" 
+                          stroke="#4facb8" 
+                          strokeWidth={3}
+                          fillOpacity={1} 
+                          fill="url(#colorUsers)"
+                          name="New Users"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                    <div className="chart-stats">
+                      <div className="chart-stat">
+                        <span className="stat-label-small">Current Month</span>
+                        <span className="stat-value-small">
+                          {growthData.userGrowth[growthData.userGrowth.length - 1]?.value || 0}
+                        </span>
+                      </div>
+                      <div className="chart-stat">
+                        <span className="stat-label-small">6-Month Avg</span>
+                        <span className="stat-value-small">
+                          {Math.round(growthData.userGrowth.reduce((sum, d) => sum + d.value, 0) / growthData.userGrowth.length) || 0}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Revenue Trend Chart */}
+                  <div className="chart-card">
+                    <div className="chart-header">
+                      <h3>Revenue Trend</h3>
+                      <div className="chart-legend">
+                        <span className="legend-dot" style={{ background: '#10b981' }}></span>
+                        <span>Last 6 months</span>
+                      </div>
+                    </div>
+                    <ResponsiveContainer width="100%" height={250}>
+                      <AreaChart data={growthData.revenueGrowth} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                        <XAxis 
+                          dataKey="month" 
+                          stroke="#9ca3af" 
+                          style={{ fontSize: '12px' }}
+                          tickLine={false}
+                        />
+                        <YAxis 
+                          stroke="#9ca3af" 
+                          style={{ fontSize: '12px' }}
+                          tickLine={false}
+                        />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Area 
+                          type="monotone" 
+                          dataKey="value" 
+                          stroke="#10b981" 
+                          strokeWidth={3}
+                          fillOpacity={1} 
+                          fill="url(#colorRevenue)"
+                          name="Revenue (Rs.)"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                    <div className="chart-stats">
+                      <div className="chart-stat">
+                        <span className="stat-label-small">Current Month</span>
+                        <span className="stat-value-small">
+                          Rs. {growthData.revenueGrowth[growthData.revenueGrowth.length - 1]?.value.toLocaleString() || 0}
+                        </span>
+                      </div>
+                      <div className="chart-stat">
+                        <span className="stat-label-small">6-Month Avg</span>
+                        <span className="stat-value-small">
+                          Rs. {Math.round(growthData.revenueGrowth.reduce((sum, d) => sum + d.value, 0) / growthData.revenueGrowth.length).toLocaleString() || 0}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recent Activity Feed */}
+                <div className="dashboard-bottom-grid">
+                  <div className="activity-section">
+                    <div className="activity-header">
+                      <h2>Recent Activity</h2>
+                      <span className="live-indicator">
+                        <span className="live-dot"></span>
+                        Live
+                      </span>
+                    </div>
+                    <div className="activity-list">
+                      {activities.length > 0 ? (
+                        activities.map(activity => (
+                          <div key={activity.id} className="activity-item-new">
+                            <div className={`activity-avatar ${activity.color}`}>
+                              {activity.icon === 'user' && (
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                  <circle cx="12" cy="7" r="4" />
+                                </svg>
+                              )}
+                              {activity.icon === 'briefcase' && (
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                                  <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                                </svg>
+                              )}
+                              {activity.icon === 'dollar' && (
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <circle cx="12" cy="12" r="10" />
+                                  <path d="M12 6v12M15 9H9.5a2.5 2.5 0 0 0 0 5h5a2.5 2.5 0 0 1 0 5H9" />
+                                </svg>
+                              )}
+                            </div>
+                            <div className="activity-details">
+                              <div className="activity-title">{activity.name}</div>
+                              <div className="activity-subtitle">{activity.type}</div>
+                            </div>
+                            <div className="activity-time">{activity.time}</div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="no-activity">
+                          <p>No recent activity</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Alerts Panel */}
+                  <div className="alerts-section">
+                    <div className="alerts-header">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                        <line x1="12" y1="9" x2="12" y2="13" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                      </svg>
+                      <h2>Alerts & Issues</h2>
+                    </div>
+                    <div className="alerts-list-new">
+                      <div className="alert-item-new red">
+                        <div className="alert-bar"></div>
+                        <div className="alert-content-new">
+                          <div className="alert-title">Pending Approvals</div>
+                          <div className="alert-time">{stats.pendingApprovals} users waiting</div>
+                        </div>
+                      </div>
+                      <div className="alert-item-new yellow">
+                        <div className="alert-bar"></div>
+                        <div className="alert-content-new">
+                          <div className="alert-title">Failed Payments</div>
+                          <div className="alert-time">{insights.failedPayments} transactions</div>
+                        </div>
+                      </div>
+                      <div className="alert-item-new red">
+                        <div className="alert-bar"></div>
+                        <div className="alert-content-new">
+                          <div className="alert-title">Pending Jobs</div>
+                          <div className="alert-time">{stats.pendingJobs} posts</div>
+                        </div>
+                      </div>
+                      <div className="alert-item-new blue">
+                        <div className="alert-bar"></div>
+                        <div className="alert-content-new">
+                          <div className="alert-title">Pending Bookings</div>
+                          <div className="alert-time">{stats.pendingBookings} bookings</div>
+                        </div>
+                      </div>
+                    </div>
+                    <button className="view-all-btn">
+                      View All Issues →
+                    </button>
+                  </div>
+                </div>
+
+                {/* Quick Insights - Purple Gradient */}
+                <div className="insights-gradient-section">
+                  <div className="insights-gradient-header">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                    </svg>
+                    <h2>Quick Insights</h2>
+                  </div>
+                  <div className="insights-gradient-grid">
+                    <div className="insight-gradient-card">
+                      <div className="insight-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="16 18 22 12 16 6" />
+                          <polyline points="8 6 2 12 8 18" />
+                        </svg>
+                      </div>
+                      <div className="insight-content">
+                        <div className="insight-label-gradient">Most Popular Skill</div>
+                        <div className="insight-value-gradient">{insights.mostPopularSkill}</div>
+                        <div className="insight-meta">{stats.totalUsers} active projects</div>
+                      </div>
+                    </div>
+                    <div className="insight-gradient-card">
+                      <div className="insight-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                          <circle cx="9" cy="7" r="4" />
+                          <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+                        </svg>
+                      </div>
+                      <div className="insight-content">
+                        <div className="insight-label-gradient">Most Active User</div>
+                        <div className="insight-value-gradient">{insights.mostActiveUser}</div>
+                        <div className="insight-meta">{stats.completedJobs} completed projects</div>
+                      </div>
+                    </div>
+                    <div className="insight-gradient-card">
+                      <div className="insight-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                          <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                        </svg>
+                      </div>
+                      <div className="insight-content">
+                        <div className="insight-label-gradient">Jobs Posted Today</div>
+                        <div className="insight-value-gradient">{insights.jobsPostedToday}</div>
+                        <div className="insight-meta">↑ 15% from yesterday</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </>
@@ -485,7 +909,8 @@ const Dashboard = ({ onLogout }) => {
       <aside className="sidebar">
         <div className="sidebar-logo">
           <img src="/Logo.png" alt="HaatBazar Logo" className="sidebar-logo-image" />
-          <h2>HaatBazar</h2>
+          <h2>HaatBazar Jobs</h2>
+          <p>admin@haatbazarjobs.com</p>
         </div>
 
         <button 
