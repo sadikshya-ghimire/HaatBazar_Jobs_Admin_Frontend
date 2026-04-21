@@ -227,7 +227,6 @@
   gap: 12px;
 }
 
-.header-search-icon,
 .header-notification-icon {
   width: 40px;
   height: 40px;
@@ -243,7 +242,6 @@
   position: relative;
 }
 
-.header-search-icon:hover,
 .header-notification-icon:hover {
   background: #e5e7eb;
   color: #374151;
