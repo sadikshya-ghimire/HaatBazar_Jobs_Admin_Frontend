@@ -1068,6 +1068,45 @@ body.modal-open .dashboard-header {
   margin-bottom: 30px;
 }
 
+/* Time Period Filter */
+.time-period-filter {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  padding: 20px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e5e7eb;
+  margin-bottom: 20px;
+}
+
+.period-btn {
+  padding: 10px 24px;
+  border: 2px solid #e5e7eb;
+  background: white;
+  color: #6b7280;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.period-btn:hover {
+  border-color: #2c5f6f;
+  color: #2c5f6f;
+  background: #f9fafb;
+}
+
+.period-btn.active {
+  background: linear-gradient(135deg, #2c5f6f 0%, #3d7a8a 100%);
+  color: white;
+  border-color: #2c5f6f;
+  box-shadow: 0 4px 12px rgba(44, 95, 111, 0.3);
+}
+
 .chart-card {
   background: #ffffff;
   border-radius: 16px;

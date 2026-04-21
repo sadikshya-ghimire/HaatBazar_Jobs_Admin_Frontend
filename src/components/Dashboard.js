@@ -41,12 +41,13 @@ const Dashboard = ({ onLogout }) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const notificationRef = React.useRef(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [timePeriod, setTimePeriod] = useState('6months'); // 7days, 30days, 6months, 12months
 
   useEffect(() => {
     if (activeTab === 'overview') {
       fetchDashboardData();
     }
-  }, [activeTab]);
+  }, [activeTab, timePeriod]);
 
   useEffect(() => {
     fetchNotifications();
@@ -280,40 +281,106 @@ const Dashboard = ({ onLogout }) => {
         failedPayments
       });
 
-      // Calculate growth data for charts (last 6 months)
+      // Calculate growth data for charts based on selected time period
+      const growthDataArray = [];
+      let periods, periodCount, formatLabel;
+
+      switch (timePeriod) {
+        case '7days':
+          periods = 7;
+          periodCount = 7;
+          formatLabel = (date) => date.toLocaleDateString('en-US', { weekday: 'short' });
+          break;
+        case '30days':
+          periods = 30;
+          periodCount = 30;
+          formatLabel = (date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          break;
+        case '6months':
+          periods = 6;
+          periodCount = 6;
+          formatLabel = (date) => date.toLocaleDateString('en-US', { month: 'short' });
+          break;
+        case '12months':
+          periods = 12;
+          periodCount = 12;
+          formatLabel = (date) => date.toLocaleDateString('en-US', { month: 'short' });
+          break;
+        default:
+          periods = 6;
+          periodCount = 6;
+          formatLabel = (date) => date.toLocaleDateString('en-US', { month: 'short' });
+      }
+
       const monthlyUserGrowth = [];
       const monthlyRevenue = [];
       
-      for (let i = 5; i >= 0; i--) {
-        const monthDate = new Date();
-        monthDate.setMonth(monthDate.getMonth() - i);
-        const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
-        const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
-        
-        // Count users registered in this month
-        const usersInMonth = allUsers.filter(u => {
-          const createdDate = new Date(u.createdAt);
-          return createdDate >= monthStart && createdDate <= monthEnd;
-        }).length;
-        
-        // Calculate revenue for this month
-        const revenueInMonth = allBookings
-          .filter(b => {
-            if (!b.paymentCompleted || !b.createdAt) return false;
-            const bookingDate = new Date(b.createdAt);
-            return bookingDate >= monthStart && bookingDate <= monthEnd;
-          })
-          .reduce((sum, b) => sum + (parseFloat(b.totalAmount) || 0), 0);
-        
-        monthlyUserGrowth.push({
-          month: monthDate.toLocaleDateString('en-US', { month: 'short' }),
-          value: usersInMonth
-        });
-        
-        monthlyRevenue.push({
-          month: monthDate.toLocaleDateString('en-US', { month: 'short' }),
-          value: revenueInMonth
-        });
+      if (timePeriod === '7days' || timePeriod === '30days') {
+        // Daily data
+        for (let i = periodCount - 1; i >= 0; i--) {
+          const date = new Date();
+          date.setDate(date.getDate() - i);
+          const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0);
+          const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59);
+          
+          // Count users registered on this day
+          const usersInDay = allUsers.filter(u => {
+            const createdDate = new Date(u.createdAt);
+            return createdDate >= dayStart && createdDate <= dayEnd;
+          }).length;
+          
+          // Calculate revenue for this day
+          const revenueInDay = allBookings
+            .filter(b => {
+              if (!b.paymentCompleted || !b.createdAt) return false;
+              const bookingDate = new Date(b.createdAt);
+              return bookingDate >= dayStart && bookingDate <= dayEnd;
+            })
+            .reduce((sum, b) => sum + (parseFloat(b.totalAmount) || 0), 0);
+          
+          monthlyUserGrowth.push({
+            month: formatLabel(date),
+            value: usersInDay
+          });
+          
+          monthlyRevenue.push({
+            month: formatLabel(date),
+            value: revenueInDay
+          });
+        }
+      } else {
+        // Monthly data
+        for (let i = periodCount - 1; i >= 0; i--) {
+          const monthDate = new Date();
+          monthDate.setMonth(monthDate.getMonth() - i);
+          const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+          const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+          
+          // Count users registered in this month
+          const usersInMonth = allUsers.filter(u => {
+            const createdDate = new Date(u.createdAt);
+            return createdDate >= monthStart && createdDate <= monthEnd;
+          }).length;
+          
+          // Calculate revenue for this month
+          const revenueInMonth = allBookings
+            .filter(b => {
+              if (!b.paymentCompleted || !b.createdAt) return false;
+              const bookingDate = new Date(b.createdAt);
+              return bookingDate >= monthStart && bookingDate <= monthEnd;
+            })
+            .reduce((sum, b) => sum + (parseFloat(b.totalAmount) || 0), 0);
+          
+          monthlyUserGrowth.push({
+            month: formatLabel(monthDate),
+            value: usersInMonth
+          });
+          
+          monthlyRevenue.push({
+            month: formatLabel(monthDate),
+            value: revenueInMonth
+          });
+        }
       }
       
       setGrowthData({
@@ -637,13 +704,46 @@ const Dashboard = ({ onLogout }) => {
 
                 {/* Growth Charts */}
                 <div className="charts-section">
+                  {/* Time Period Filter */}
+                  <div className="time-period-filter">
+                    <button 
+                      className={`period-btn ${timePeriod === '7days' ? 'active' : ''}`}
+                      onClick={() => setTimePeriod('7days')}
+                    >
+                      7 Days
+                    </button>
+                    <button 
+                      className={`period-btn ${timePeriod === '30days' ? 'active' : ''}`}
+                      onClick={() => setTimePeriod('30days')}
+                    >
+                      30 Days
+                    </button>
+                    <button 
+                      className={`period-btn ${timePeriod === '6months' ? 'active' : ''}`}
+                      onClick={() => setTimePeriod('6months')}
+                    >
+                      6 Months
+                    </button>
+                    <button 
+                      className={`period-btn ${timePeriod === '12months' ? 'active' : ''}`}
+                      onClick={() => setTimePeriod('12months')}
+                    >
+                      12 Months
+                    </button>
+                  </div>
+
                   {/* User Growth Chart */}
                   <div className="chart-card">
                     <div className="chart-header">
                       <h3>User Growth</h3>
                       <div className="chart-legend">
                         <span className="legend-dot" style={{ background: '#4facb8' }}></span>
-                        <span>Last 6 months</span>
+                        <span>
+                          {timePeriod === '7days' ? 'Last 7 days' : 
+                           timePeriod === '30days' ? 'Last 30 days' : 
+                           timePeriod === '6months' ? 'Last 6 months' : 
+                           'Last 12 months'}
+                        </span>
                       </div>
                     </div>
                     <ResponsiveContainer width="100%" height={250}>
@@ -700,7 +800,12 @@ const Dashboard = ({ onLogout }) => {
                       <h3>Revenue Trend</h3>
                       <div className="chart-legend">
                         <span className="legend-dot" style={{ background: '#10b981' }}></span>
-                        <span>Last 6 months</span>
+                        <span>
+                          {timePeriod === '7days' ? 'Last 7 days' : 
+                           timePeriod === '30days' ? 'Last 30 days' : 
+                           timePeriod === '6months' ? 'Last 6 months' : 
+                           'Last 12 months'}
+                        </span>
                       </div>
                     </div>
                     <ResponsiveContainer width="100%" height={250}>
