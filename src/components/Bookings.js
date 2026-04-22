@@ -16,6 +16,17 @@ const Bookings = () => {
     fetchBookings();
   }, []);
 
+  useEffect(() => {
+    if (showModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showModal]);
+
   const fetchBookings = async () => {
     try {
       setLoading(true);
