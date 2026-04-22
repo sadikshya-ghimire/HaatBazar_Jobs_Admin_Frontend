@@ -1,5 +1,5 @@
 .users-container {
-  padding: 30px 0;
+  padding: 0;
   position: relative;
   z-index: 1;
 }
@@ -8,7 +8,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
 }
 
 .users-header h2 {
@@ -41,7 +41,7 @@
   display: flex;
   align-items: center;
   gap: 20px;
-  margin-bottom: 25px;
+  margin-bottom: 20px;
   flex-wrap: wrap;
 }
 
@@ -364,7 +364,7 @@
 }
 
 .users-table td:last-child {
-  min-width: 220px;
+  min-width: auto;
   width: auto;
 }
 
@@ -482,19 +482,24 @@
   display: flex;
   gap: 8px;
   flex-wrap: nowrap;
-  min-width: 200px;
 }
 
 .action-btn {
-  padding: 8px 16px;
+  width: 44px;
+  height: 44px;
   border: none;
   border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  transition: all 0.3s ease;
-  white-space: nowrap;
+  transition: all 0.2s ease;
   flex-shrink: 0;
+}
+
+.action-btn svg {
+  width: 20px;
+  height: 20px;
 }
 
 .action-btn.view {

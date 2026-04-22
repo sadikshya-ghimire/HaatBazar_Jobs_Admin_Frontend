@@ -458,39 +458,57 @@ const Users = () => {
                       <button 
                         className="action-btn view"
                         onClick={() => handleView(user)}
+                        title="View Details"
                       >
-                        View
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
                       </button>
                       {user.status === 'pending' && (
                         <button 
                           className="action-btn approve"
                           onClick={() => handleApprove(user._id, user.name)}
+                          title="Approve"
                         >
-                          Approve
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
                         </button>
                       )}
                       {user.status === 'active' && (
                         <button 
                           className="action-btn suspend"
                           onClick={() => handleSuspend(user._id, user.name)}
+                          title="Suspend"
                         >
-                          Suspend
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+                          </svg>
                         </button>
                       )}
                       {user.status === 'suspended' && (
                         <button 
                           className="action-btn activate"
                           onClick={() => handleActivate(user._id, user.name)}
+                          title="Activate"
                         >
-                          Activate
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
                         </button>
                       )}
                       {(user.status === 'pending' || user.status === 'suspended') && (
                         <button 
                           className="action-btn delete"
                           onClick={() => handleDelete(user._id, user.name)}
+                          title="Delete"
                         >
-                          Delete
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          </svg>
                         </button>
                       )}
                     </div>
